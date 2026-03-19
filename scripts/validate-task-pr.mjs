@@ -127,9 +127,50 @@ function parsePrBodyFields(bodyText) {
   return fields;
 }
 
+function stripHtmlComments(value) {
+  return String(value || '').replace(/<!--[\s\S]*?-->/g, '');
+}
+
+function normalizeFieldContent(value) {
+  return stripHtmlComments(value)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+}
+
+function extractPrimaryIdFromField(value) {
+  const cleaned = normalizeFieldContent(value);
+  const match = cleaned.match(/\b(task|bug|spike|feature)-\d+\b/i);
+  return match ? match[0].toLowerCase() : '';
+}
+
+function extractTaskFilePathFromField(value) {
+  const cleaned = normalizeFieldContent(value);
+  if (!cleaned) return '';
+
+  const lines = cleaned
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[-*]\s+/, '').trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const markdownLinkPath = line.match(/\(([^)\r\n]+\.md)\)/);
+    if (markdownLinkPath) return normalizePath(markdownLinkPath[1]);
+
+    const inlineCodePath = line.match(/`([^`\r\n]+\.md)`/);
+    if (inlineCodePath) return normalizePath(inlineCodePath[1]);
+
+    const plainPath = line.match(/([A-Za-z0-9._/\-\\]+\.md)\b/);
+    if (plainPath) return normalizePath(plainPath[1]);
+  }
+
+  return normalizePath(lines[0]);
+}
+
 function isMeaningfulFieldValue(value) {
-  if (!value) return false;
-  const normalized = value.trim().toLowerCase();
+  const normalized = normalizeFieldContent(value).toLowerCase();
   if (!normalized) return false;
   const placeholders = ['<fill>', '<required>', 'tbd', 'todo'];
   return !placeholders.includes(normalized);
@@ -289,6 +330,37 @@ function isRelatedItemsLine(line) {
   return /related_items\s*:/i.test(line);
 }
 
+function isRelatedItemsListLine(line) {
+  return /^[-*]\s+/.test(String(line || '').trim());
+}
+
+function getRelatedItemsLineIndexes(lines) {
+  const relatedIndexes = new Set();
+  let inRelatedItemsBlock = false;
+
+  for (const [index, line] of lines.entries()) {
+    if (isRelatedItemsLine(line)) {
+      relatedIndexes.add(index);
+      inRelatedItemsBlock = true;
+      continue;
+    }
+
+    if (!inRelatedItemsBlock) continue;
+
+    const trimmed = String(line || '').trim();
+    if (!trimmed) continue;
+
+    if (isRelatedItemsListLine(line)) {
+      relatedIndexes.add(index);
+      continue;
+    }
+
+    inRelatedItemsBlock = false;
+  }
+
+  return relatedIndexes;
+}
+
 function shouldStrictTaskPaths(options, policyValue) {
   if (options.strictTaskPaths) return true;
   const envValue = String(process.env.VALIDATE_TASK_PATH_POLICY || process.env.VALIDATE_TASK_PATH_STRICT || '').toLowerCase();
@@ -371,7 +443,7 @@ function main() {
       }
     }
 
-    const bodyTaskId = fields['Task ID']?.split(/\s+/)[0]?.trim();
+    const bodyTaskId = extractPrimaryIdFromField(fields['Task ID']);
     if (bodyTaskId && bodyTaskId !== primaryId) {
       addError(errors, `Task ID in PR body (${bodyTaskId}) does not match branch ID (${primaryId}).`);
     }
@@ -385,9 +457,8 @@ function main() {
   let primaryPath = null;
 
   if (!options.selfCheck) {
-    const taskFileField = normalizePath(fields['Task File Path'] || '');
+    const taskFileField = extractTaskFilePathFromField(fields['Task File Path'] || '');
     if (taskFileField) {
-      primaryPath = taskFileField;
       const escapedExpected = escapeRegex(expectedDir);
       const isValidTaskPath = new RegExp(`^${escapedExpected}/[^/]+/${primaryId}-.+\\.md$`).test(taskFileField)
         || new RegExp(`^${escapedExpected}/${primaryId}-.+\\.md$`).test(taskFileField);
@@ -395,6 +466,8 @@ function main() {
       if (!isValidTaskPath) {
         const expectedPattern = `${expectedDir}/<status>/${primaryId}-*.md`;
         addError(errors, `Task File Path must point to ${expectedPattern}`);
+      } else {
+        primaryPath = taskFileField;
       }
     }
   }
@@ -455,16 +528,17 @@ function main() {
     if (!changedFiles.includes(logFile)) continue;
     const addedLines = getDiffAddedLines(logFile, options);
     const addedText = addedLines.join('\n');
+    const relatedItemsLineIndexes = getRelatedItemsLineIndexes(addedLines);
 
     if (!addedText.includes(primaryId)) {
       addError(errors, `${logFile} was updated but added lines do not reference ${primaryId}.`);
     }
 
     const outsideRelatedIds = [];
-    for (const line of addedLines) {
+    for (const [index, line] of addedLines.entries()) {
       const ids = extractIdsFromText(line).filter((id) => id !== primaryId);
       if (ids.length === 0) continue;
-      if (isRelatedItemsLine(line)) continue;
+      if (relatedItemsLineIndexes.has(index)) continue;
       outsideRelatedIds.push(...ids);
     }
 
