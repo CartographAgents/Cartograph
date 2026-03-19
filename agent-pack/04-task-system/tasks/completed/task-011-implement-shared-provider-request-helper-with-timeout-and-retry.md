@@ -2,12 +2,12 @@
 id: task-011
 title: Implement shared provider request helper with timeout and retry
 type: task
-status: pull_requested
+status: completed
 priority: P1
 owner: Eric Lott
 claim_owner: Eric Lott
-claim_status: claimed
-claim_expires_at: "2026-03-20T21:58:57.279Z"
+claim_status: released
+claim_expires_at: null
 sla_due_at: "2026-04-13T23:59:00Z"
 depends_on: []
 acceptance_criteria:
