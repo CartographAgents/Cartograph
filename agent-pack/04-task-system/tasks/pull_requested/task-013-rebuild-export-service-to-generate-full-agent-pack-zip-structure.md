@@ -2,7 +2,7 @@
 id: task-013
 title: Rebuild export service to generate full agent-pack zip structure
 type: task
-status: in_progress
+status: pull_requested
 priority: P0
 owner: Eric Lott
 claim_owner: Eric Lott
