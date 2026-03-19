@@ -2,7 +2,7 @@
 id: task-003
 title: Add request payload validation for save-state endpoint
 type: task
-status: in_progress
+status: pull_requested
 priority: P0
 owner: Eric Lott
 claim_owner: Eric Lott
