@@ -10,6 +10,10 @@ Workflow path source of truth:
 - `.cartograph/workflow.json`
 - Workflow scripts must resolve repository workflow paths via manifest-backed helpers only.
 
+## Prerequisites
+- **GitHub CLI (`gh`)**: Required for automated PR creation and status checks.
+  - Install via `winget install --id GitHub.cli` (Windows) or `brew install gh` (macOS).
+
 ## Contribution Modes
 After reading the canonical contract, do one of the following:
 1. Create new tasks when backlog coverage is insufficient.

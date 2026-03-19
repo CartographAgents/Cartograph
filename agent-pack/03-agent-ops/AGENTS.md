@@ -20,6 +20,10 @@ Contribute reliably to Cartograph by either:
 1. Creating high-quality, dependency-aware tasks when the backlog is missing or unclear.
 2. Executing outstanding tasks in priority order with evidence-backed completion.
 
+## Prerequisites
+- **GitHub CLI (`gh`)**: Required for automated PR creation and status checks.
+  - Install via `winget install --id GitHub.cli` (Windows) or `brew install gh` (macOS).
+
 ## First-Time Agent Quickstart
 ### Step 1: Read Source of Truth in Order
 1. `../00-context/vision.md`
