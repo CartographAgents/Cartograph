@@ -40,6 +40,13 @@ next_step: Add retrieval endpoint and integration tests.
 ```
 
 ## Latest Entries
+- 2026-03-19T16:35:00-05:00 | `task-013` | `done` | Rebuilt export service to generate full agent-pack zip structure.
+  - Evidence:
+    - Updated `exportService.js` to generate a recursive directory structure from `00-context` through `07-artifacts`.
+    - Implemented `processPillarTasks` to recursively generate atomic task files with YAML frontmatter from the pillar/decision tree.
+    - Included core contract files (`vision.md`, `AGENTS.md`, `README.md`) populated with project-specific summaries.
+    - Verified that the generated zip follows the mission-ready pack format consumable by agents.
+  - related_items: task-014
 - 2026-03-19T16:10:00-05:00 | `task-004` | `done` | Added `GET /api/projects/latest` endpoint for frontend state hydration.
   - Evidence:
     - Implemented recursive pillar/decision tree construction in `backend/server.js`.
