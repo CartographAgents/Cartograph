@@ -68,6 +68,14 @@ Bootstrap responsibilities:
 - claims selected task
 - generates context bundle for manual or AI-assisted execution
 
+### Step 5: Use Cartograph Closeout
+Before opening a PR, run:
+- `node scripts/cartograph-closeout.mjs`
+- Non-interactive validation and status-move:
+  - `node scripts/cartograph-closeout.mjs --task task-###`
+
+This command runs manifest and PR validation checks, moves the task to the `completed/` folder, and stages all changes for commit.
+
 ## Contribution Modes
 ### Mode A: Create New Tasks
 Use this mode when no executable task exists for current priorities.
@@ -99,8 +107,9 @@ Execution rules:
 3. Implement only what is required by task acceptance criteria.
 4. Validate per quality docs.
 5. Record evidence in `../05-state/progress-log.md`.
-6. Move task to `pull_requested` when PR is submitted, then `completed` after PR approval.
-7. Release claim (`claim_status: released`, `claim_expires_at: null`) when task is `completed`.
+6. Use `node scripts/cartograph-closeout.mjs` to prepare for completion.
+7. Move task to `pull_requested` when PR is submitted, then `completed` after PR approval.
+8. Release claim (`claim_status: released`, `claim_expires_at: null`) when task is `completed`.
 
 ### Single-Task PR Boundary
 - One PR must map to exactly one primary task ID.
@@ -109,8 +118,10 @@ Execution rules:
 - If state logs are updated (`progress`, `blockers`, `decisions`), entries must reference the same primary task ID.
 - PR title must include the same task ID as the branch and task file.
 - Run local preflight validation before opening PR:
-  - `node scripts/check-manifest-path-usage.mjs`
-  - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
+  - `node scripts/cartograph-closeout.mjs`
+  - Manual validation:
+    - `node scripts/check-manifest-path-usage.mjs`
+    - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
   - Optional strict path mode:
     - `node scripts/validate-task-pr.mjs --self-check --task-id task-### --strict-task-paths`
 

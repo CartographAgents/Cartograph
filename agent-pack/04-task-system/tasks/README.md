@@ -78,7 +78,8 @@ last_updated: 2026-03-19
   - `node scripts/cartograph-contribute.mjs --auto`
 - Resume an existing task branch:
   - `node scripts/cartograph-contribute.mjs --task task-### --resume`
-- This command claims one eligible task and prepares branch/context for single-task execution.
+- Task completion and closeout:
+  - `node scripts/cartograph-closeout.mjs`
 - Task status sync automation:
   - `node scripts/task-status-sync.mjs --to pull_requested --branch task/task-###-slug`
   - `node scripts/task-status-sync.mjs --to completed --branch task/task-###-slug`
@@ -121,6 +122,7 @@ When metadata changes, move the file to the matching folder in the same commit.
 
 ## Validation Commands
 - Local preflight:
+  - `node scripts/cartograph-closeout.mjs`
   - `node scripts/check-manifest-path-usage.mjs`
   - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
 - Optional strict path enforcement:

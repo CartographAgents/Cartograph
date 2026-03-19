@@ -29,10 +29,21 @@ Your first execution step is to run:
 
 This command validates docs, selects one eligible task, prepares a task-linked branch, claims the task, and outputs an agent-ready context bundle.
 
+## Task Closeout
+When work is complete, run:
+- `node scripts/cartograph-closeout.mjs`
+- Non-interactive validation and status-move:
+  - `node scripts/cartograph-closeout.mjs --task task-###`
+
+This command runs manifest and PR validation checks, moves the task to the `completed/` folder, and stages all changes for commit.
+
+
 ## Local Preflight Validation
-Before opening a PR, run:
-- `node scripts/check-manifest-path-usage.mjs`
-- `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
+Before opening a PR, use the closeout script to run:
+- `node scripts/cartograph-closeout.mjs`
+- Manual validation commands:
+  - `node scripts/check-manifest-path-usage.mjs`
+  - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
 - Optional strict task-path enforcement:
   - `node scripts/validate-task-pr.mjs --self-check --task-id task-### --strict-task-paths`
 
