@@ -43,6 +43,50 @@ Pillar.belongsTo(Pillar, { as: 'parent', foreignKey: 'parentId' });
 
 sequelize.sync({ alter: true }).then(() => console.log('Database synced')).catch(console.error);
 
+app.get('/api/projects/latest', async (req, res) => {
+    try {
+        const project = await Project.findOne({
+            order: [['createdAt', 'DESC']]
+        });
+
+        if (!project) {
+            return res.json({});
+        }
+
+        const allPillars = await Pillar.findAll({
+            where: { ProjectId: project.id },
+            include: [Decision]
+        });
+
+        const buildPillarTree = (parentId = null) => {
+            return allPillars
+                .filter(p => p.parentId === parentId)
+                .map(p => ({
+                    id: p.pillarId,
+                    title: p.title,
+                    description: p.description,
+                    decisions: p.Decisions.map(d => ({
+                        id: d.decisionId,
+                        question: d.question,
+                        context: d.context,
+                        answer: d.answer
+                    })),
+                    subcategories: buildPillarTree(p.id)
+                }));
+        };
+
+        const pillarTree = buildPillarTree(null);
+
+        res.json({
+            projectId: project.id,
+            idea: project.idea,
+            pillars: pillarTree
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/save-state', async (req, res) => {
     try {
         const { idea, pillars, projectId } = req.body;
