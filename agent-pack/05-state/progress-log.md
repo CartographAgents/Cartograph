@@ -51,6 +51,17 @@ next_step: Add retrieval endpoint and integration tests.
     - `frontend/src/App.jsx` stores returned `projectId` and reuses it on subsequent saves.
     - `node scripts/validate-task-pr.mjs --self-check --task-id task-001` (pass).
   - Next step: Complete PR handoff for `task-001`.
+- 2026-03-19T10:50:00-05:00 | `task-001` | `done` | Validated non-destructive persistence behavior on rebuilt backend container and released claim.
+  - Evidence:
+    - `docker compose up -d --build backend` (rebuilt runtime with branch code).
+    - `POST /api/save-state` smoke sequence:
+      - First save response: `projectId=31`
+      - Second save with `projectId=31` response: `projectId=31` (stable ID reuse)
+      - Third save without `projectId` response: `projectId=32` (new snapshot without deleting existing)
+    - MySQL verification via `docker exec ... SELECT COUNT(*) FROM Projects`:
+      - Before sequence: `1`
+      - After sequence: `3`
+  - Next step: Begin the next dependency-unlocked high-priority backlog item.
 
 ## Weekly Summary
 - Week of 2026-03-16: transitioned from scaffold-only pack to execution-ready planning and task backlog.

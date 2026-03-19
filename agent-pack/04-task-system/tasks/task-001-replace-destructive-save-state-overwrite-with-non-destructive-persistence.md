@@ -2,12 +2,12 @@
 id: task-001
 title: Replace destructive save-state overwrite with non-destructive persistence
 type: task
-status: in_progress
+status: done
 priority: P0
 owner: Eric Lott
-claim_owner: Eric Lott
-claim_status: claimed
-claim_expires_at: "2026-03-20T14:28:58.709Z"
+claim_owner: unassigned
+claim_status: released
+claim_expires_at: null
 sla_due_at: "2026-04-05T23:59:00Z"
 depends_on: []
 acceptance_criteria:
