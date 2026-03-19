@@ -40,6 +40,12 @@ next_step: Add retrieval endpoint and integration tests.
 ```
 
 ## Latest Entries
+- 2026-03-19T16:10:00-05:00 | `task-004` | `done` | Added `GET /api/projects/latest` endpoint for frontend state hydration.
+  - Evidence:
+    - Implemented recursive pillar/decision tree construction in `backend/server.js`.
+    - Verified endpoint returns latest project idea and full nested hierarchy using `scripts/verify-task-004.mjs`.
+    - Verified deterministic `{}` response for empty database state.
+  - related_items: task-006, task-016
 - 2026-03-19T13:55:00-05:00 | `task-003` | `done` | Added robust recursive request payload validation to `POST /api/save-state` endpoint.
   - Evidence:
     - Replaced inline checks with a dedicated `validateRequest` function in `backend/server.js` that recursively validates `idea`, `pillars`, `decisions`, and `subcategories`.
