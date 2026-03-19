@@ -55,6 +55,10 @@ When invoked from root prompt styles like:
 
 Preferred setup command:
 - `node scripts/cartograph-contribute.mjs`
+- Non-interactive auto-pick:
+  - `node scripts/cartograph-contribute.mjs --auto`
+- Resume existing task branch:
+  - `node scripts/cartograph-contribute.mjs --task task-### --resume`
 
 Bootstrap responsibilities:
 - validates required docs and task contracts
@@ -104,6 +108,8 @@ Execution rules:
 - PR title must include the same task ID as the branch and task file.
 - Run local preflight validation before opening PR:
   - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
+  - Optional strict path mode:
+    - `node scripts/validate-task-pr.mjs --self-check --task-id task-### --strict-task-paths`
 
 ## Source-of-Truth Precedence
 When instructions conflict, resolve in this order:
@@ -160,6 +166,10 @@ State log entry schemas:
 - Progress: `timestamp`, `task_id`, `summary`, `evidence`, `next_step`
 - Blocker: `blocker_id`, `impact`, `unblock_condition`, `owner`, `escalation_status`
 - Decision: `decision_id`, `context`, `options`, `chosen_option`, `rationale`, `date`
+
+State log reference rule:
+- Added lines must reference the primary task ID.
+- References to additional task IDs are allowed only inside a dedicated `related_items:` line.
 
 ## Validation and Definition of Done Gates
 A task can move to `done` only when:

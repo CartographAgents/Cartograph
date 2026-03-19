@@ -80,6 +80,12 @@ For all item types, file name remains stable (`<type>-###-slug.md`); only the co
 - Validation fails if multiple backlog item files are modified.
 - Local preflight command:
   - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
+- Optional strict task-path mode:
+  - `node scripts/validate-task-pr.mjs --self-check --task-id task-### --strict-task-paths`
+
+## State Log Cross-References
+- Added state-log lines must include the primary task ID for the PR.
+- Additional task IDs are allowed only in a dedicated `related_items:` line.
 
 ## Update Cadence
 Update when workflow contracts or metadata schema change.

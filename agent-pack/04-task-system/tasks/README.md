@@ -66,7 +66,17 @@ last_updated: 2026-03-19
 ## Bootstrap Command
 - Preferred one-command setup:
   - `node scripts/cartograph-contribute.mjs`
+- Non-interactive auto-pick:
+  - `node scripts/cartograph-contribute.mjs --auto`
+- Resume an existing task branch:
+  - `node scripts/cartograph-contribute.mjs --task task-### --resume`
 - This command claims one eligible task and prepares branch/context for single-task execution.
+
+## Atomic Transition Helper
+- Use `node scripts/task-transition.mjs --task-id task-### --to <state>` for metadata + folder moves in one command.
+- Supported targets:
+  - `claimed`, `in_progress`, `done`, `blocked`, `expired`, `cancelled`
+- This helper enforces legal status/claim transitions before writing files.
 
 ## Atomicity Rules
 - One task should represent one principal deliverable.
@@ -100,8 +110,18 @@ When metadata changes, move the file to the matching folder in the same commit.
 ## Validation Commands
 - Local preflight:
   - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
+- Optional strict path enforcement:
+  - `node scripts/validate-task-pr.mjs --self-check --task-id task-### --strict-task-paths`
 - CI enforcement:
   - `.github/workflows/task-pr-validation.yml`
+
+## State Log Convention
+- State log updates must include the primary task ID in added lines.
+- If additional task IDs are needed, include them only in a `related_items:` line.
+
+## Task Path Migration Policy
+- Default validator behavior warns on legacy flat task paths (`agent-pack/04-task-system/tasks/task-###-*.md`).
+- Strict mode (`--strict-task-paths` or `VALIDATE_TASK_PATH_POLICY=strict`) fails validation for flat paths.
 
 ## Naming Rules
 - File name: `task-###-short-name.md`

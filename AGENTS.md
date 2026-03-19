@@ -18,12 +18,18 @@ If a human asks you to contribute, they should prompt you with:
 
 Your first execution step is to run:
 - `node scripts/cartograph-contribute.mjs`
+- Non-interactive automation:
+  - `node scripts/cartograph-contribute.mjs --auto`
+- Resume existing task branch:
+  - `node scripts/cartograph-contribute.mjs --task task-### --resume`
 
 This command validates docs, selects one eligible task, prepares a task-linked branch, claims the task, and outputs an agent-ready context bundle.
 
 ## Local Preflight Validation
 Before opening a PR, run:
 - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
+- Optional strict task-path enforcement:
+  - `node scripts/validate-task-pr.mjs --self-check --task-id task-### --strict-task-paths`
 
 PR enforcement is strict:
 - one primary task per PR

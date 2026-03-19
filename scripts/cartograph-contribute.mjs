@@ -1,33 +1,31 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { readMarkdownWithFrontmatter, writeMarkdownWithFrontmatter } from './lib/frontmatter.mjs';
+import {
+  TASK_KEY_ORDER,
+  collectTaskFilesRecursively,
+  getTaskTargetPath,
+  parseIsoDate,
+} from './lib/task-workflow.mjs';
 
-const TASK_KEY_ORDER = [
-  'id',
-  'title',
-  'type',
-  'status',
-  'priority',
-  'owner',
-  'claim_owner',
-  'claim_status',
-  'claim_expires_at',
-  'sla_due_at',
-  'depends_on',
-  'acceptance_criteria',
-  'last_updated',
-];
+const PRIORITY_ORDER = {
+  P0: 0,
+  P1: 1,
+  P2: 2,
+  P3: 3,
+};
 
 function parseArgs(argv) {
   const options = {
     claimHours: 24,
     dryRun: false,
     allowDirty: false,
+    auto: false,
+    resume: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -45,6 +43,10 @@ function parseArgs(argv) {
       options.dryRun = true;
     } else if (arg === '--allow-dirty') {
       options.allowDirty = true;
+    } else if (arg === '--auto') {
+      options.auto = true;
+    } else if (arg === '--resume') {
+      options.resume = true;
     } else if (arg === '--help' || arg === '-h') {
       options.help = true;
     } else {
@@ -89,44 +91,6 @@ function slugify(text, maxLength = 48) {
 
 function todayDateString() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function collectTaskFilesRecursively(directoryPath) {
-  const entries = fs.readdirSync(directoryPath, { withFileTypes: true });
-  const files = [];
-
-  for (const entry of entries) {
-    const fullPath = path.join(directoryPath, entry.name);
-
-    if (entry.isDirectory()) {
-      files.push(...collectTaskFilesRecursively(fullPath));
-      continue;
-    }
-
-    if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'README.md' && entry.name.startsWith('task-')) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
-}
-
-function getTaskStatusBucket(frontmatter) {
-  const status = String(frontmatter.status || '').toLowerCase();
-  const claimStatus = String(frontmatter.claim_status || '').toLowerCase();
-
-  if (status === 'done') return 'complete';
-  if (status === 'cancelled') return 'cancelled';
-  if (claimStatus === 'expired') return 'claim_expired';
-  if (status === 'blocked') return 'blocked';
-  if (status === 'in_progress') return 'in_progress';
-  if (claimStatus === 'claimed') return 'claimed';
-  return 'todo';
-}
-
-function getTaskTargetPath(tasksDir, filePath, frontmatter) {
-  const targetDir = path.join(tasksDir, getTaskStatusBucket(frontmatter));
-  return path.join(targetDir, path.basename(filePath));
 }
 
 function loadTasks(rootDir) {
@@ -182,9 +146,51 @@ function getEligibility(task, taskMap) {
   };
 }
 
+function getDependencyDepth(task, taskMap, seen = new Set()) {
+  const dependsOn = Array.isArray(task.frontmatter.depends_on) ? task.frontmatter.depends_on : [];
+  const taskId = String(task.frontmatter.id || '');
+
+  if (seen.has(taskId) || dependsOn.length === 0) return 0;
+
+  const nextSeen = new Set(seen);
+  nextSeen.add(taskId);
+
+  let maxDepth = 0;
+  for (const dep of dependsOn) {
+    const depId = String(dep);
+    if (!depId.startsWith('task-')) continue;
+    const depTask = taskMap.get(depId);
+    if (!depTask) {
+      maxDepth = Math.max(maxDepth, 9999);
+      continue;
+    }
+    maxDepth = Math.max(maxDepth, 1 + getDependencyDepth(depTask, taskMap, nextSeen));
+  }
+
+  return maxDepth;
+}
+
+function sortEligibleTasks(eligibleTasks, taskMap) {
+  return [...eligibleTasks].sort((a, b) => {
+    const aPriority = PRIORITY_ORDER[String(a.frontmatter.priority || '').toUpperCase()] ?? 99;
+    const bPriority = PRIORITY_ORDER[String(b.frontmatter.priority || '').toUpperCase()] ?? 99;
+    if (aPriority !== bPriority) return aPriority - bPriority;
+
+    const aDepth = getDependencyDepth(a, taskMap);
+    const bDepth = getDependencyDepth(b, taskMap);
+    if (aDepth !== bDepth) return aDepth - bDepth;
+
+    const aUpdated = parseIsoDate(a.frontmatter.last_updated)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    const bUpdated = parseIsoDate(b.frontmatter.last_updated)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    if (aUpdated !== bUpdated) return aUpdated - bUpdated;
+
+    return String(a.frontmatter.id).localeCompare(String(b.frontmatter.id));
+  });
+}
+
 async function selectTaskInteractive(eligibleTasks) {
   if (!process.stdout.isTTY) {
-    throw new Error('Interactive selection requires a TTY. Use --task task-### for non-interactive mode.');
+    throw new Error('Interactive selection requires a TTY. Use --task task-### or --auto for non-interactive mode.');
   }
 
   const rl = createInterface({ input, output });
@@ -219,6 +225,18 @@ function computeClaimExpiry(frontmatter, claimHours) {
   return proposed;
 }
 
+function getFastVerifyCommands(itemType, taskId) {
+  const type = String(itemType || '').toLowerCase();
+  const commands = [`node scripts/validate-task-pr.mjs --self-check --task-id ${taskId}`];
+
+  if (['task', 'bug', 'feature'].includes(type)) {
+    commands.push('cd frontend && npm run lint');
+    commands.push('cd frontend && npm run build');
+  }
+
+  return commands;
+}
+
 function buildContextBundle(task, owner, branchName) {
   const fm = task.frontmatter;
   const dependsOn = Array.isArray(fm.depends_on) && fm.depends_on.length > 0
@@ -227,8 +245,9 @@ function buildContextBundle(task, owner, branchName) {
   const acceptance = Array.isArray(fm.acceptance_criteria) && fm.acceptance_criteria.length > 0
     ? fm.acceptance_criteria.map((item) => `- ${item}`).join('\n')
     : '- Add acceptance criteria in task file.';
+  const fastVerify = getFastVerifyCommands(fm.type, fm.id).map((command) => `- ${command}`).join('\n');
 
-  return `# Cartograph Contribution Context: ${fm.id}\n\n## Primary Task\n- Task ID: ${fm.id}\n- Task File: ${task.relativePath}\n- Task Title: ${fm.title}\n- Branch: ${branchName}\n- Owner: ${owner}\n\n## Task Goal\n${extractSection(task.body, 'Task Goal') || 'See task file.'}\n\n## Dependencies\n${dependsOn}\n\n## Acceptance Criteria\n${acceptance}\n\n## Source-of-Truth Read Order\n1. AGENTS.md\n2. agent-pack/03-agent-ops/AGENTS.md\n3. agent-pack/02-execution/implementation-strategy.md\n4. agent-pack/02-execution/dependency-map.md\n5. ${task.relativePath}\n\n## PR Contract Checklist\n- [ ] PR title includes ${fm.id}\n- [ ] PR body includes required task linkage fields\n- [ ] Changed backlog files are limited to this primary task file\n- [ ] Progress/decision/blocker updates (if any) reference ${fm.id}\n\n## Local Validation\n- Run: node scripts/validate-task-pr.mjs --self-check --task-id ${fm.id}\n\n## Ready Prompt\nRead AGENTS.md and agent-pack/03-agent-ops/AGENTS.md. Implement only ${fm.id} (${fm.title}). Keep scope to this primary task plus required state logs. Do not modify other backlog items. Produce evidence aligned to acceptance criteria and keep PR title/body linked to ${fm.id}.\n`;
+  return `# Cartograph Contribution Context: ${fm.id}\n\n## Primary Task\n- Task ID: ${fm.id}\n- Task File: ${task.relativePath}\n- Task Title: ${fm.title}\n- Branch: ${branchName}\n- Owner: ${owner}\n\n## Task Goal\n${extractSection(task.body, 'Task Goal') || 'See task file.'}\n\n## Dependencies\n${dependsOn}\n\n## Acceptance Criteria\n${acceptance}\n\n## Source-of-Truth Read Order\n1. AGENTS.md\n2. agent-pack/03-agent-ops/AGENTS.md\n3. agent-pack/02-execution/implementation-strategy.md\n4. agent-pack/02-execution/dependency-map.md\n5. ${task.relativePath}\n\n## PR Contract Checklist\n- [ ] PR title includes ${fm.id}\n- [ ] PR body includes required task linkage fields\n- [ ] Changed backlog files are limited to this primary task file\n- [ ] Progress/decision/blocker updates (if any) reference ${fm.id}\n\n## Local Validation\n- Run: node scripts/validate-task-pr.mjs --self-check --task-id ${fm.id}\n\n## Fast Verify\n${fastVerify}\n\n## Ready Prompt\nRead AGENTS.md and agent-pack/03-agent-ops/AGENTS.md. Implement only ${fm.id} (${fm.title}). Keep scope to this primary task plus required state logs. Do not modify other backlog items. Produce evidence aligned to acceptance criteria and keep PR title/body linked to ${fm.id}.\n`;
 }
 
 function extractSection(body, headingName) {
@@ -246,27 +265,66 @@ function ensureCleanWorktree(allowDirty) {
   }
 }
 
-function createBranch(branchName, dryRun) {
-  const currentBranch = runGit(['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
-  if (currentBranch === branchName) return;
+function branchExists(branchName) {
+  return runGit(['rev-parse', '--verify', '--quiet', `refs/heads/${branchName}`], { allowFailure: true }).status === 0;
+}
 
-  const exists = runGit(['rev-parse', '--verify', '--quiet', `refs/heads/${branchName}`], { allowFailure: true }).status === 0;
+function createOrSwitchBranch(branchName, { dryRun, resume }) {
+  const currentBranch = runGit(['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
+  if (currentBranch === branchName) {
+    return { reused: true };
+  }
+
+  const exists = branchExists(branchName);
+
   if (exists) {
-    throw new Error(`Branch ${branchName} already exists. Switch to it manually or choose a different task.`);
+    if (!resume) {
+      throw new Error(`Branch ${branchName} already exists. Rerun with --resume to reuse it, or choose a different task.`);
+    }
+
+    if (!dryRun) {
+      runGit(['switch', branchName]);
+    }
+
+    return { reused: true };
   }
 
   if (!dryRun) {
     runGit(['switch', '-c', branchName]);
   }
+
+  return { reused: false };
 }
 
-function printSummary({ task, branchName, owner, claimExpiry, bundlePath, dryRun }) {
+function isClaimExpired(frontmatter) {
+  const claimStatus = String(frontmatter.claim_status || '').toLowerCase();
+  if (claimStatus !== 'claimed') return false;
+  const expiry = parseIsoDate(frontmatter.claim_expires_at);
+  if (!expiry) return false;
+  return expiry.getTime() < Date.now();
+}
+
+function isResumeEligible(task, owner) {
+  const claimStatus = String(task.frontmatter.claim_status || '').toLowerCase();
+  const status = String(task.frontmatter.status || '').toLowerCase();
+  const claimOwner = String(task.frontmatter.claim_owner || '');
+
+  const claimedByOwner = claimStatus === 'claimed'
+    && claimOwner === owner
+    && !isClaimExpired(task.frontmatter)
+    && ['todo', 'backlog', 'in_progress', 'blocked'].includes(status);
+
+  return claimedByOwner;
+}
+
+function printSummary({ task, branchName, owner, claimExpiry, bundlePath, dryRun, resumed }) {
   const mode = dryRun ? 'DRY RUN' : 'READY';
-  console.log(`\n[${mode}] cartograph-contribute prepared ${task.frontmatter.id}`);
+  const reuseLabel = resumed ? ' (resumed)' : '';
+  console.log(`\n[${mode}] cartograph-contribute prepared ${task.frontmatter.id}${reuseLabel}`);
   console.log(`- Branch: ${branchName}`);
   console.log(`- Task file: ${task.relativePath}`);
   console.log(`- Owner: ${owner}`);
-  console.log(`- Claim expires: ${claimExpiry.toISOString()}`);
+  console.log(`- Claim expires: ${claimExpiry ? claimExpiry.toISOString() : String(task.frontmatter.claim_expires_at || 'n/a')}`);
   console.log(`- Context bundle: ${bundlePath.replace(/\\/g, '/')}`);
   console.log('\nNext steps:');
   console.log('1. Implement only this primary task and required related files.');
@@ -276,7 +334,7 @@ function printSummary({ task, branchName, owner, claimExpiry, bundlePath, dryRun
 }
 
 function printHelp() {
-  console.log(`cartograph-contribute\n\nUsage:\n  node scripts/cartograph-contribute.mjs [options]\n\nOptions:\n  --task <task-###>           Select task non-interactively\n  --owner <name>              Set task owner/claim owner\n  --claim-hours <n>           Claim window in hours (default: 24)\n  --launch-cmd "...{bundle}"  Optional command to launch an agent using context bundle path\n  --dry-run                   Preview actions without mutating files/git\n  --allow-dirty               Skip clean-worktree check (intended for controlled dry runs)\n  --help                      Show this help\n`);
+  console.log(`cartograph-contribute\n\nUsage:\n  node scripts/cartograph-contribute.mjs [options]\n\nOptions:\n  --task <task-###>           Select task non-interactively\n  --auto                      Auto-select highest-priority eligible task\n  --resume                    Reuse existing task branch if it already exists\n  --owner <name>              Set task owner/claim owner\n  --claim-hours <n>           Claim window in hours (default: 24)\n  --launch-cmd "...{bundle}"  Optional command to launch an agent using context bundle path\n  --dry-run                   Preview actions without mutating files/git\n  --allow-dirty               Skip clean-worktree check (intended for controlled dry runs)\n  --help                      Show this help\n`);
 }
 
 async function main() {
@@ -298,7 +356,16 @@ async function main() {
   const tasks = loadTasks(rootDir);
   const taskMap = new Map(tasks.map((task) => [String(task.frontmatter.id), task]));
 
-  const eligibleTasks = tasks.filter((task) => getEligibility(task, taskMap).eligible);
+  const owner = options.owner
+    || runGit(['config', 'user.name'], { allowFailure: true }).stdout.trim()
+    || process.env.USER
+    || process.env.USERNAME
+    || 'unassigned';
+
+  const eligibleTasks = sortEligibleTasks(
+    tasks.filter((task) => getEligibility(task, taskMap).eligible),
+    taskMap,
+  );
 
   if (eligibleTasks.length === 0) {
     throw new Error('No eligible tasks found. Create/refine tasks or resolve dependencies/claims first.');
@@ -311,53 +378,58 @@ async function main() {
     if (!selectedTask) {
       throw new Error(`Task ${options.taskId} was not found.`);
     }
-
-    const eligibility = getEligibility(selectedTask, taskMap);
-    if (!eligibility.eligible) {
-      throw new Error(`Task ${options.taskId} is not eligible: ${eligibility.reasons.join('; ')}`);
-    }
+  } else if (options.auto) {
+    selectedTask = eligibleTasks[0];
   } else {
     selectedTask = await selectTaskInteractive(eligibleTasks);
   }
 
-  const owner = options.owner
-    || runGit(['config', 'user.name'], { allowFailure: true }).stdout.trim()
-    || process.env.USER
-    || process.env.USERNAME
-    || 'unassigned';
-
   const taskId = String(selectedTask.frontmatter.id);
   const taskSlug = slugify(String(selectedTask.frontmatter.title || taskId));
   const branchName = `task/${taskId}${taskSlug ? `-${taskSlug}` : ''}`;
-  const claimExpiry = computeClaimExpiry(selectedTask.frontmatter, options.claimHours);
+  const existingBranch = branchExists(branchName);
 
-  if (Number.isNaN(claimExpiry.getTime())) {
+  const eligibility = getEligibility(selectedTask, taskMap);
+  const canResumeClaim = options.resume && existingBranch && isResumeEligible(selectedTask, owner);
+  const canClaimNow = eligibility.eligible;
+
+  if (!canClaimNow && !canResumeClaim) {
+    throw new Error(`Task ${taskId} is not eligible: ${eligibility.reasons.join('; ')}${options.resume ? '. Resume requires the task to be claim-eligible or already claimed by the same owner.' : ''}`);
+  }
+
+  let claimExpiry = canClaimNow ? computeClaimExpiry(selectedTask.frontmatter, options.claimHours) : null;
+  let resumed = false;
+
+  if (claimExpiry && Number.isNaN(claimExpiry.getTime())) {
     throw new Error('Unable to compute claim expiry. Check task SLA metadata.');
   }
 
   if (!options.dryRun) {
-    createBranch(branchName, options.dryRun);
+    const branchResult = createOrSwitchBranch(branchName, { dryRun: options.dryRun, resume: options.resume });
+    resumed = branchResult.reused && existingBranch;
 
-    const updated = { ...selectedTask.frontmatter };
-    updated.owner = owner;
-    updated.claim_owner = owner;
-    updated.claim_status = 'claimed';
-    updated.claim_expires_at = claimExpiry.toISOString();
-    updated.status = 'in_progress';
-    updated.last_updated = todayDateString();
+    if (canClaimNow) {
+      const updated = { ...selectedTask.frontmatter };
+      updated.owner = owner;
+      updated.claim_owner = owner;
+      updated.claim_status = 'claimed';
+      updated.claim_expires_at = claimExpiry.toISOString();
+      updated.status = 'in_progress';
+      updated.last_updated = todayDateString();
 
-    const tasksDir = path.join(rootDir, 'agent-pack', '04-task-system', 'tasks');
-    const targetPath = getTaskTargetPath(tasksDir, selectedTask.filePath, updated);
-    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-    writeMarkdownWithFrontmatter(targetPath, updated, selectedTask.body, TASK_KEY_ORDER);
+      const tasksDir = path.join(rootDir, 'agent-pack', '04-task-system', 'tasks');
+      const targetPath = getTaskTargetPath(tasksDir, selectedTask.filePath, updated);
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      writeMarkdownWithFrontmatter(targetPath, updated, selectedTask.body, TASK_KEY_ORDER);
 
-    if (targetPath !== selectedTask.filePath && fs.existsSync(selectedTask.filePath)) {
-      fs.unlinkSync(selectedTask.filePath);
+      if (targetPath !== selectedTask.filePath && fs.existsSync(selectedTask.filePath)) {
+        fs.unlinkSync(selectedTask.filePath);
+      }
+
+      selectedTask.filePath = targetPath;
+      selectedTask.relativePath = path.relative(rootDir, targetPath).replace(/\\/g, '/');
+      selectedTask.frontmatter = updated;
     }
-
-    selectedTask.filePath = targetPath;
-    selectedTask.relativePath = path.relative(rootDir, targetPath).replace(/\\/g, '/');
-    selectedTask.frontmatter = updated;
   }
 
   const bundleDir = path.join(rootDir, '.cartograph', 'context');
@@ -376,6 +448,7 @@ async function main() {
     claimExpiry,
     bundlePath,
     dryRun: options.dryRun,
+    resumed,
   });
 
   if (options.launchCmd) {

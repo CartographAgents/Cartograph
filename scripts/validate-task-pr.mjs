@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseFrontmatter } from './lib/frontmatter.mjs';
+import { STATUS_TRANSITIONS, CLAIM_TRANSITIONS, getTaskPathKind } from './lib/task-workflow.mjs';
 
 const REQUIRED_PR_FIELDS = [
   'Task ID',
@@ -16,25 +16,10 @@ const REQUIRED_PR_FIELDS = [
   'Out-of-Scope Changes',
 ];
 
-const STATUS_TRANSITIONS = {
-  backlog: new Set(['backlog', 'todo', 'in_progress', 'blocked', 'cancelled']),
-  todo: new Set(['todo', 'in_progress', 'blocked', 'cancelled']),
-  in_progress: new Set(['in_progress', 'blocked', 'todo', 'done', 'cancelled']),
-  blocked: new Set(['blocked', 'in_progress', 'todo', 'cancelled']),
-  done: new Set(['done']),
-  cancelled: new Set(['cancelled']),
-};
-
-const CLAIM_TRANSITIONS = {
-  unclaimed: new Set(['unclaimed', 'claimed']),
-  claimed: new Set(['claimed', 'released', 'expired']),
-  expired: new Set(['expired', 'unclaimed', 'claimed']),
-  released: new Set(['released', 'claimed']),
-};
-
 function parseArgs(argv) {
   const options = {
     selfCheck: false,
+    strictTaskPaths: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -49,6 +34,7 @@ function parseArgs(argv) {
     else if (arg === '--changed-files-file') options.changedFilesFile = argv[++i];
     else if (arg === '--base') options.base = argv[++i];
     else if (arg === '--head') options.head = argv[++i];
+    else if (arg === '--strict-task-paths') options.strictTaskPaths = true;
     else if (arg === '--help' || arg === '-h') options.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
@@ -263,12 +249,26 @@ function validateTransition(oldValue, newValue, allowedMap, label) {
   return null;
 }
 
+function isRelatedItemsLine(line) {
+  return /related_items\s*:/i.test(line);
+}
+
+function shouldStrictTaskPaths(options) {
+  if (options.strictTaskPaths) return true;
+  const envValue = String(process.env.VALIDATE_TASK_PATH_POLICY || process.env.VALIDATE_TASK_PATH_STRICT || '').toLowerCase();
+  return envValue === 'strict' || envValue === '1' || envValue === 'true';
+}
+
 function printHelp() {
-  console.log(`validate-task-pr\n\nUsage:\n  node scripts/validate-task-pr.mjs [options]\n\nModes:\n  Default: CI/PR validation (branch/title/body/changed files checks)\n  --self-check: local task-scope preflight using current branch + working tree diff\n\nOptions:\n  --self-check\n  --task-id <task-###>\n  --branch <branch-name>\n  --title <pr-title>\n  --body <pr-body>\n  --body-file <path>\n  --changed-files-file <path>\n  --base <git-ref-or-sha>\n  --head <git-ref-or-sha>\n  --help\n`);
+  console.log(`validate-task-pr\n\nUsage:\n  node scripts/validate-task-pr.mjs [options]\n\nModes:\n  Default: CI/PR validation (branch/title/body/changed files checks)\n  --self-check: local task-scope preflight using current branch + working tree diff\n\nOptions:\n  --self-check\n  --task-id <task-###>\n  --branch <branch-name>\n  --title <pr-title>\n  --body <pr-body>\n  --body-file <path>\n  --changed-files-file <path>\n  --base <git-ref-or-sha>\n  --head <git-ref-or-sha>\n  --strict-task-paths          Enforce status-bucket task paths as hard errors\n  --help\n\nEnv:\n  VALIDATE_TASK_PATH_POLICY=warn|strict\n  VALIDATE_TASK_PATH_STRICT=1|true (legacy strict toggle)\n`);
 }
 
 function addError(errors, message) {
   errors.push(message);
+}
+
+function addWarning(warnings, message) {
+  warnings.push(message);
 }
 
 function main() {
@@ -279,7 +279,9 @@ function main() {
   }
 
   const errors = [];
+  const warnings = [];
   const event = loadEventPayload();
+  const strictTaskPaths = shouldStrictTaskPaths(options);
 
   const branch = options.branch || process.env.PR_BRANCH || process.env.GITHUB_HEAD_REF || getCurrentBranch();
   const primaryFromBranch = parsePrimaryFromBranch(branch);
@@ -301,7 +303,7 @@ function main() {
     addError(errors, 'No changed files detected. Validation requires task-scoped changes.');
   }
 
-  let title = options.title || process.env.PR_TITLE || event?.pull_request?.title || '';
+  const title = options.title || process.env.PR_TITLE || event?.pull_request?.title || '';
   let body = options.body || process.env.PR_BODY || event?.pull_request?.body || '';
   const bodyFromFile = readIfExists(options.bodyFile);
   if (bodyFromFile) body = bodyFromFile;
@@ -371,6 +373,15 @@ function main() {
     addError(errors, `Primary item file must be changed in this PR: ${primaryPath}`);
   }
 
+  if (primaryType === 'task' && primaryPath) {
+    const kind = getTaskPathKind(primaryPath);
+    if (kind.flat) {
+      const message = `Primary task path is legacy flat layout: ${primaryPath}. Migrate to agent-pack/04-task-system/tasks/<status>/...`;
+      if (strictTaskPaths) addError(errors, message);
+      else addWarning(warnings, message);
+    }
+  }
+
   const changedBacklogItemFiles = changedFiles.filter((file) => getBacklogItemFileId(file));
   const invalidBacklogChanges = changedBacklogItemFiles.filter((file) => file !== primaryPath);
   if (invalidBacklogChanges.length > 0) {
@@ -398,9 +409,16 @@ function main() {
       addError(errors, `${logFile} was updated but added lines do not reference ${primaryId}.`);
     }
 
-    const ids = extractIdsFromText(addedText).filter((id) => id !== primaryId);
-    if (ids.length > 0) {
-      addError(errors, `${logFile} added lines reference other primary IDs: ${[...new Set(ids)].join(', ')}`);
+    const outsideRelatedIds = [];
+    for (const line of addedLines) {
+      const ids = extractIdsFromText(line).filter((id) => id !== primaryId);
+      if (ids.length === 0) continue;
+      if (isRelatedItemsLine(line)) continue;
+      outsideRelatedIds.push(...ids);
+    }
+
+    if (outsideRelatedIds.length > 0) {
+      addError(errors, `${logFile} added lines reference other primary IDs outside related_items: ${[...new Set(outsideRelatedIds)].join(', ')}`);
     }
   }
 
@@ -439,6 +457,14 @@ function main() {
 
   if (options.selfCheck && !options.taskId) {
     addError(errors, '--self-check requires --task-id <task-###>.');
+  }
+
+  if (warnings.length > 0) {
+    console.warn('\nTask PR validation warnings:');
+    for (const warning of warnings) {
+      console.warn(`- ${warning}`);
+      console.warn(`::warning::${warning}`);
+    }
   }
 
   if (errors.length > 0) {

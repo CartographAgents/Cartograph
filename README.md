@@ -39,9 +39,12 @@ Click the **Settings (⚙️)** icon in the sidebar to configure your preferred 
    - `Read AGENTS.md and work on tasks`
    - `Read AGENTS.md and create new tasks`
 3. The agent will run `node scripts/cartograph-contribute.mjs` to standardize task selection, claim, and branch setup.
+   - Non-interactive auto-pick: `node scripts/cartograph-contribute.mjs --auto`
+   - Resume existing task branch: `node scripts/cartograph-contribute.mjs --task task-### --resume`
 4. Implement only that one primary task and required related files.
 5. Run local scope check before opening PR:
    - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
+   - Optional strict task-path mode: `node scripts/validate-task-pr.mjs --self-check --task-id task-### --strict-task-paths`
 6. Open a PR with title format `[task-###] ...` and complete the PR template fields.
 
 ### Single-Task PR Contract
@@ -49,6 +52,7 @@ Click the **Settings (⚙️)** icon in the sidebar to configure your preferred 
 - The PR must include the primary task file under `agent-pack/04-task-system/tasks/`.
 - PRs that drift into multiple backlog items fail automated validation.
 - Progress/blocker/decision log updates must reference the same primary task ID.
+- If a log entry must reference another task ID, include it only in a `related_items:` line.
 
 ### Using a Coding Agent
 Point your coding agent to [AGENTS.md](AGENTS.md) at repo root. It contains first-time onboarding steps, contribution rules, quality gates, and logging expectations.
