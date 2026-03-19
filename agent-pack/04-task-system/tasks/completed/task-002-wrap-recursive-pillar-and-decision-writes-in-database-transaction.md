@@ -2,13 +2,13 @@
 id: task-002
 title: Wrap recursive pillar and decision writes in database transaction
 type: task
-status: todo
+status: completed
 priority: P0
-owner: unassigned
-claim_owner: unassigned
-claim_status: unclaimed
+owner: Eric Lott
+claim_owner: Eric Lott
+claim_status: released
 claim_expires_at: null
-sla_due_at: 2026-04-06T23:59:00Z
+sla_due_at: "2026-04-06T23:59:00Z"
 depends_on:
   - task-001
 acceptance_criteria:
@@ -17,6 +17,7 @@ acceptance_criteria:
   - Rollback path is covered by integration test plan entry.
 last_updated: 2026-03-19
 ---
+
 
 # Task: Wrap recursive pillar and decision writes in database transaction
 
