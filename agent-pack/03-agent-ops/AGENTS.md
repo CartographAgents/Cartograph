@@ -48,6 +48,17 @@ Then inspect related modules for your target task scope.
 - Mode A: Create new tasks if outstanding tasks are missing, stale, or under-specified.
 - Mode B: Begin work on eligible outstanding tasks.
 
+### Step 4: Use Cartograph Contribute Bootstrap
+Preferred setup command:
+- `node scripts/cartograph-contribute.mjs`
+
+Bootstrap responsibilities:
+- validates required docs and task contracts
+- selects one eligible `task-*` item
+- creates task-linked branch name (`task/task-###-slug`)
+- claims selected task
+- generates context bundle for manual or AI-assisted execution
+
 ## Contribution Modes
 ### Mode A: Create New Tasks
 Use this mode when no executable task exists for current priorities.
@@ -81,6 +92,14 @@ Execution rules:
 5. Record evidence in `../05-state/progress-log.md`.
 6. Move task to `done` only after Definition of Done gates pass.
 7. Release claim (`claim_status: released`, `claim_expires_at: null`) when task is done.
+
+### Single-Task PR Boundary
+- One PR must map to exactly one primary task ID.
+- Do not modify other backlog item files (`task-*`, `bug-*`, `spike-*`, `feature-*`, `epic-*`) outside the selected primary item.
+- If state logs are updated (`progress`, `blockers`, `decisions`), entries must reference the same primary task ID.
+- PR title must include the same task ID as the branch and task file.
+- Run local preflight validation before opening PR:
+  - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
 
 ## Source-of-Truth Precedence
 When instructions conflict, resolve in this order:

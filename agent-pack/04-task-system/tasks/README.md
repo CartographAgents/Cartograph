@@ -60,6 +60,13 @@ last_updated: 2026-03-19
 - Every pull request must include the `agent-pack/04-task-system/tasks/` file for each task ID it implements.
 - If code changes do not map to an existing task file, create the task file in the same PR.
 - Before marking task `done`, release claim ownership by setting `claim_status` to `released` and `claim_expires_at` to `null`.
+- PR title must include the same task ID as the selected task file.
+- Use PR template fields for task linkage, evidence, and out-of-scope disclosure.
+
+## Bootstrap Command
+- Preferred one-command setup:
+  - `node scripts/cartograph-contribute.mjs`
+- This command claims one eligible task and prepares branch/context for single-task execution.
 
 ## Atomicity Rules
 - One task should represent one principal deliverable.
@@ -72,6 +79,15 @@ last_updated: 2026-03-19
 ## Claim Lifecycle
 `unclaimed -> claimed -> released`
 `claimed -> expired -> unclaimed`
+
+## Branch Pattern (Task Work)
+- `task/task-###(-slug)?`
+
+## Validation Commands
+- Local preflight:
+  - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
+- CI enforcement:
+  - `.github/workflows/task-pr-validation.yml`
 
 ## Naming Rules
 - File name: `task-###-short-name.md`

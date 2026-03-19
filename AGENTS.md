@@ -11,6 +11,21 @@ After reading the canonical contract, do one of the following:
 1. Create new tasks when backlog coverage is insufficient.
 2. Execute eligible outstanding tasks in priority/dependency order.
 
+## One-Command Contributor Flow
+Use the repo bootstrap command to prepare single-task work:
+- `node scripts/cartograph-contribute.mjs`
+
+This command validates docs, selects one eligible task, prepares a task-linked branch, claims the task, and outputs an agent-ready context bundle.
+
+## Local Preflight Validation
+Before opening a PR, run:
+- `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
+
+PR enforcement is strict:
+- one primary task per PR
+- branch, PR title, and PR template must link the same task ID
+- unrelated backlog item file changes are rejected
+
 ## First Read
 Before coding, read in order:
 1. `agent-pack/00-context/vision.md`

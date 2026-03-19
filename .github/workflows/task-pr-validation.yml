@@ -1,0 +1,37 @@
+name: Task PR Validation
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  validate-task-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Compute changed files
+        run: |
+          git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} > changed_files.txt
+          echo "Changed files:"
+          cat changed_files.txt
+
+      - name: Validate single-task PR contract
+        env:
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CHANGED_FILES_FILE: changed_files.txt
+        run: |
+          node scripts/validate-task-pr.mjs --changed-files-file changed_files.txt --base "$PR_BASE_SHA" --head "$PR_HEAD_SHA"

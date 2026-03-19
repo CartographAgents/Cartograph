@@ -21,6 +21,8 @@ Define how work items are represented, named, and progressed across epics, featu
 - File Placement Rules
 - Claim Rules
 - PR Contribution Rules
+- Branch Naming Rules
+- Validation Rules
 
 ## Claim Rules
 - Tasks are claimable work items. A contributor must claim a task before implementation begins.
@@ -33,6 +35,22 @@ Define how work items are represented, named, and progressed across epics, featu
 - If no matching task exists, create one in the same PR before or alongside implementation changes.
 - If a PR spans multiple tasks, include all corresponding task files and keep dependency links accurate.
 - PR summaries should reference task IDs directly for traceability and review speed.
+
+## Branch Naming Rules
+- Branch names must encode one primary item ID.
+- Accepted patterns:
+  - `task/task-###(-slug)?`
+  - `bug/bug-###(-slug)?`
+  - `spike/spike-###(-slug)?`
+  - `feature/feature-###(-slug)?`
+- V1 bootstrap command creates `task/...` branches for task execution.
+
+## Validation Rules
+- Automated validation is enforced in PR CI.
+- Validation fails if branch, PR title, and primary item linkage do not match.
+- Validation fails if multiple backlog item files are modified.
+- Local preflight command:
+  - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
 
 ## Update Cadence
 Update when workflow contracts or metadata schema change.
