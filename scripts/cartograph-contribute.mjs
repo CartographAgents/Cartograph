@@ -10,6 +10,7 @@ import {
   collectTaskFilesRecursively,
   getTaskTargetPath,
   parseIsoDate,
+  validateTaskUniqueness,
 } from './lib/task-workflow.mjs';
 import {
   loadWorkflowConfig,
@@ -385,6 +386,11 @@ async function main() {
   }
 
   const tasksRootRel = getWorkflowPath(config, 'tasks_root');
+  
+  // Validate uniqueness before proceeding
+  console.log('[VALIDATE] Checking task ID uniqueness across global task folders...');
+  validateTaskUniqueness(toAbsolutePath(rootDir, tasksRootRel));
+
   const tasks = loadTasks(rootDir, tasksRootRel);
   const taskMap = new Map(tasks.map((task) => [String(task.frontmatter.id), task]));
 

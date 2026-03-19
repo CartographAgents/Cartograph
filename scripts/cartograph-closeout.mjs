@@ -9,6 +9,7 @@ import {
     TASK_KEY_ORDER,
     collectTaskFilesRecursively,
     getTaskTargetPath,
+    validateTaskUniqueness,
 } from './lib/task-workflow.mjs';
 import {
     loadWorkflowConfig,
@@ -224,6 +225,11 @@ async function main() {
 
     // 2. Find the task file
     const tasksDir = toAbsolutePath(rootDir, tasksRootRel);
+
+    // Ensure uniqueness before proceeding
+    console.log(`- Checking task ID uniqueness across global task folders...`);
+    validateTaskUniqueness(tasksDir);
+
     const allTasks = collectTaskFilesRecursively(tasksDir);
     const task = allTasks.find(t => path.basename(t).startsWith(`${taskId}-`));
 

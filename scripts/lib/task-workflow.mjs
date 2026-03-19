@@ -55,6 +55,36 @@ export function collectTaskFilesRecursively(directoryPath) {
   return files;
 }
 
+
+export function validateTaskUniqueness(tasksRoot) {
+  const allFiles = collectTaskFilesRecursively(tasksRoot);
+  const idToPaths = new Map();
+  const errors = [];
+
+  for (const filePath of allFiles) {
+    const fileName = path.basename(filePath);
+    const match = fileName.match(/^(task-\d+)/);
+    if (match) {
+      const taskId = match[1];
+      if (!idToPaths.has(taskId)) {
+        idToPaths.set(taskId, []);
+      }
+      idToPaths.get(taskId).push(filePath);
+    }
+  }
+
+  const tasksDir = path.dirname(tasksRoot);
+  for (const [taskId, paths] of idToPaths.entries()) {
+    if (paths.length > 1) {
+      errors.push(`Duplicate Task ID found for ${taskId}:\n- ${paths.map(p => path.relative(tasksDir, p)).join('\n- ')}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Task uniqueness validation failed:\n\n${errors.join('\n\n')}\n\nTasks must be MOVED across status folders, never copied.`);
+  }
+}
+
 export function getTaskStatusBucket(frontmatter) {
   const status = String(frontmatter.status || '').toLowerCase();
   const claimStatus = String(frontmatter.claim_status || '').toLowerCase();

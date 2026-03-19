@@ -2,13 +2,14 @@
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { parseFrontmatter } from './lib/frontmatter.mjs';
-import { STATUS_TRANSITIONS, CLAIM_TRANSITIONS, getTaskPathKind } from './lib/task-workflow.mjs';
+import { STATUS_TRANSITIONS, CLAIM_TRANSITIONS, getTaskPathKind, validateTaskUniqueness } from './lib/task-workflow.mjs';
 import {
   loadWorkflowConfig,
   getWorkflowPath,
   getWorkflowPolicy,
   getTaskSystemRoot,
   joinWorkflowPath,
+  toAbsolutePath,
 } from './lib/workflow-config.mjs';
 
 const REQUIRED_PR_FIELDS = [
@@ -391,10 +392,18 @@ function main() {
   const tasksRoot = getWorkflowPath(config, 'tasks_root');
   const stateRoot = getWorkflowPath(config, 'state_root');
   const taskSystemRoot = getTaskSystemRoot(config);
-  const strictTaskPaths = shouldStrictTaskPaths(options, getWorkflowPolicy(config, 'task_path_policy', 'warn'));
-
+  
   const errors = [];
   const warnings = [];
+
+  // 0. Global uniqueness check
+  try {
+    validateTaskUniqueness(toAbsolutePath(process.cwd(), taskSystemRoot));
+  } catch (err) {
+    addError(errors, err.message);
+  }
+
+  const strictTaskPaths = shouldStrictTaskPaths(options, getWorkflowPolicy(config, 'task_path_policy', 'warn'));
   const event = loadEventPayload();
 
   const branch = options.branch || process.env.PR_BRANCH || process.env.GITHUB_HEAD_REF || getCurrentBranch();
