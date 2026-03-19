@@ -2,7 +2,7 @@
 id: task-006
 title: Hydrate frontend state from latest persisted project on startup
 type: task
-status: in_progress
+status: pull_requested
 priority: P0
 owner: Eric Lott
 claim_owner: Eric Lott
