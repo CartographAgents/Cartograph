@@ -2,12 +2,12 @@
 id: task-004
 title: Add latest project retrieval endpoint for frontend hydration
 type: task
-status: pull_requested
+status: completed
 priority: P0
 owner: Eric Lott
 claim_owner: Eric Lott
-claim_status: claimed
-claim_expires_at: "2026-03-20T21:06:51.622Z"
+claim_status: released
+claim_expires_at: null
 sla_due_at: "2026-04-08T23:59:00Z"
 depends_on:
   - task-001
