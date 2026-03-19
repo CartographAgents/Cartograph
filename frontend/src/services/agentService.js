@@ -81,7 +81,7 @@ const parseLLMResponse = (text) => {
         if (cleanText.startsWith('```')) cleanText = cleanText.substring(3);
         if (cleanText.endsWith('```')) cleanText = cleanText.substring(0, cleanText.length - 3);
         return JSON.parse(cleanText.trim());
-    } catch (e) {
+    } catch {
         console.error("Failed to parse JSON:", text);
         throw new Error("Invalid output format from LLM. It failed to produce valid JSON.");
     }
@@ -95,25 +95,10 @@ export const generatePillarsFromIdea = async (ideaDescription, config) => {
     const prompt = `Application Idea:\n${ideaDescription}`;
 
     try {
-        if (provider === 'openai') {
-            const res = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${keys.openai}`
-                },
-                body: JSON.stringify({
-                    model: 'gpt-4o',
-                    messages: [
-                        { role: 'system', content: SYSTEM_PROMPT },
-                        { role: 'user', content: prompt }
-                    ],
-                    response_format: { type: 'json_object' } // OpenAI requires `json_object` to wrap in `{ "pillars": [...] }`, so let's just use text and parse
-                })
-            });
-            // OpenAI JSON mode requires the output to be an object, but our schema is an Array. We'll disable response_format and rely on the prompt instructing raw JSON.
-        }
-    } catch (e) { } // Refactoring fetch below to handle the JSON object constraint properly.
+        // OpenAI JSON mode requires the output to be an object, but our schema is an Array. We'll disable response_format and rely on the prompt instructing raw JSON.
+    } catch {
+        // Fallback or retry logic handled below
+    }
 
     try {
         if (provider === 'openai') {
@@ -310,6 +295,6 @@ export const processChatTurn = async (chatHistory, currentPillars, config) => {
     }
 };
 
-export const evaluateDecisions = async (pillars, config) => {
+export const evaluateDecisions = async () => {
     return new Promise((resolve) => resolve([]));
 };

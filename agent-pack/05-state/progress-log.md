@@ -40,6 +40,12 @@ next_step: Add retrieval endpoint and integration tests.
 ```
 
 ## Latest Entries
+- 2026-03-19T12:55:00-05:00 | `task-008` | `done` | Resolved localStorage bootstrap lint errors by using synchronous state initializers.
+  - Evidence:
+    - Refactored `App.jsx` and `SettingsModal.jsx` to load configuration from `localStorage` within `useState(() => ...)` initializers.
+    - Removed unused `useEffect` and other variables identified by lint.
+    - `npm run lint` in `frontend/` now passes with zero errors.
+  - Next step: Continue with `task-002` (Harden retrieval API).
 - 2026-03-19T12:45:00-05:00 | `task-001` | `done` | Replaced destructive save logic with non-destructive, project-targeted persistence.
   - Evidence:
     - Updated `backend/server.js` to look for `projectId` in `req.body`, perform targeted updates, and use cascading deletes for hierarchical reconstruction.

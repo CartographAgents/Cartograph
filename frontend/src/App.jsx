@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './App.css';
 import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import PillarWorkspace from './components/PillarWorkspace';
 import SettingsModal from './components/SettingsModal';
-import { generatePillarsFromIdea, evaluateDecisions, processChatTurn, generateCategoriesForPillar } from './services/agentService';
+import { generatePillarsFromIdea, processChatTurn, generateCategoriesForPillar } from './services/agentService';
 import { generateBlueprintZip } from './services/exportService';
 import { saveStateToBackend } from './services/apiService';
 
@@ -19,17 +19,14 @@ function App() {
   const [projectId, setProjectId] = useState(null);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [llmConfig, setLlmConfig] = useState({
-    keys: { openai: '', anthropic: '', gemini: '' },
-    provider: 'mock'
-  });
-
-  useEffect(() => {
+  const [llmConfig, setLlmConfig] = useState(() => {
     const savedKeys = localStorage.getItem('cartograph_keys');
     const savedProvider = localStorage.getItem('cartograph_provider');
-    if (savedKeys) setLlmConfig(prev => ({ ...prev, keys: JSON.parse(savedKeys) }));
-    if (savedProvider) setLlmConfig(prev => ({ ...prev, provider: savedProvider }));
-  }, []);
+    return {
+      keys: savedKeys ? JSON.parse(savedKeys) : { openai: '', anthropic: '', gemini: '' },
+      provider: savedProvider || 'mock'
+    };
+  });
 
   const handleSendMessage = async (content) => {
     const newMessages = [...messages, { role: 'user', content }];
