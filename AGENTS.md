@@ -12,7 +12,11 @@ After reading the canonical contract, do one of the following:
 2. Execute eligible outstanding tasks in priority/dependency order.
 
 ## One-Command Contributor Flow
-Use the repo bootstrap command to prepare single-task work:
+If a human asks you to contribute, they should prompt you with:
+- `Read AGENTS.md and work on tasks`
+- `Read AGENTS.md and create new tasks`
+
+Your first execution step is to run:
 - `node scripts/cartograph-contribute.mjs`
 
 This command validates docs, selects one eligible task, prepares a task-linked branch, claims the task, and outputs an agent-ready context bundle.

@@ -35,9 +35,10 @@ Click the **Settings (⚙️)** icon in the sidebar to configure your preferred 
 
 ## Contributing (Very Simple)
 1. Fork and clone this repo.
-2. Run one command from repo root:
-   - `node scripts/cartograph-contribute.mjs`
-3. Select one eligible `task-###` when prompted (or pass `--task task-###`).
+2. Prompt your coding agent with one of these:
+   - `Read AGENTS.md and work on tasks`
+   - `Read AGENTS.md and create new tasks`
+3. The agent will run `node scripts/cartograph-contribute.mjs` to standardize task selection, claim, and branch setup.
 4. Implement only that one primary task and required related files.
 5. Run local scope check before opening PR:
    - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
@@ -45,7 +46,7 @@ Click the **Settings (⚙️)** icon in the sidebar to configure your preferred 
 
 ### Single-Task PR Contract
 - Every PR is scoped to exactly one primary task.
-- The PR must include the primary task file under `agent-pack/04-task-system/tasks/<status>/`.
+- The PR must include the primary task file under `agent-pack/04-task-system/tasks/`.
 - PRs that drift into multiple backlog items fail automated validation.
 - Progress/blocker/decision log updates must reference the same primary task ID.
 

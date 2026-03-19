@@ -49,6 +49,10 @@ Then inspect related modules for your target task scope.
 - Mode B: Begin work on eligible outstanding tasks.
 
 ### Step 4: Use Cartograph Contribute Bootstrap
+When invoked from root prompt styles like:
+- `Read AGENTS.md and work on tasks`
+- `Read AGENTS.md and create new tasks`
+
 Preferred setup command:
 - `node scripts/cartograph-contribute.mjs`
 
