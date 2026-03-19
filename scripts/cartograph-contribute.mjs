@@ -41,6 +41,8 @@ function parseArgs(argv) {
       options.taskId = argv[++i];
     } else if (arg === '--owner') {
       options.owner = argv[++i];
+    } else if (arg === '--base') {
+      options.base = argv[++i];
     } else if (arg === '--claim-hours') {
       options.claimHours = Number.parseInt(argv[++i], 10);
     } else if (arg === '--launch-cmd') {
@@ -53,6 +55,8 @@ function parseArgs(argv) {
       options.auto = true;
     } else if (arg === '--resume') {
       options.resume = true;
+    } else if (arg === '--skip-push') {
+      options.skipPush = true;
     } else if (arg === '--help' || arg === '-h') {
       options.help = true;
     } else {
@@ -350,11 +354,12 @@ function printSummary({ task, branchName, owner, claimExpiry, bundlePath, dryRun
 }
 
 function printHelp() {
-  console.log(`cartograph-contribute\n\nUsage:\n  node scripts/cartograph-contribute.mjs [options]\n\nOptions:\n  --task <task-###>           Select task non-interactively\n  --auto                      Auto-select highest-priority eligible task\n  --resume                    Reuse existing task branch if it already exists\n  --owner <name>              Set task owner/claim owner\n  --claim-hours <n>           Claim window in hours (default: 24)\n  --launch-cmd "...{bundle}"  Optional command to launch an agent using context bundle path\n  --dry-run                   Preview actions without mutating files/git\n  --allow-dirty               Skip clean-worktree check (intended for controlled dry runs)\n  --help                      Show this help\n`);
+  console.log(`cartograph-contribute\n\nUsage:\n  node scripts/cartograph-contribute.mjs [options]\n\nOptions:\n  --task <task-###>           Select task non-interactively\n  --auto                      Auto-select highest-priority eligible task\n  --resume                    Reuse existing task branch if it already exists\n  --base <branch>             Base branch to claim on and branch from (default: main)\n  --owner <name>              Set task owner/claim owner\n  --claim-hours <n>           Claim window in hours (default: 24)\n  --launch-cmd "...{bundle}"  Optional command to launch an agent using context bundle path\n  --skip-push                 Do not push the claim commit to origin\n  --dry-run                   Preview actions without mutating files/git\n  --allow-dirty               Skip clean-worktree check (intended for controlled dry runs)\n  --help                      Show this help\n`);
 }
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  options.base = options.base || 'main'; // Default base
 
   if (options.help) {
     printHelp();
@@ -423,10 +428,21 @@ async function main() {
   }
 
   if (!options.dryRun) {
-    const branchResult = createOrSwitchBranch(branchName, { dryRun: options.dryRun, resume: options.resume });
-    resumed = branchResult.reused && existingBranch;
-
     if (canClaimNow) {
+      console.log(`\n[CLAIM] Initializing global claim on branch ${options.base}...`);
+
+      // 1. Ensure we are on base branch and synced
+      const currentBranch = runGit(['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
+      if (currentBranch !== options.base) {
+        console.log(`- Switching to ${options.base}...`);
+        runGit(['switch', options.base]);
+      }
+
+      console.log(`- Syncing with origin/${options.base}...`);
+      runGit(['pull', 'origin', options.base], { allowFailure: true });
+
+      // 2. Perform the claim (update file)
+      console.log(`- Claiming ${taskId} for ${owner}...`);
       const updated = { ...selectedTask.frontmatter };
       updated.owner = owner;
       updated.claim_owner = owner;
@@ -447,7 +463,24 @@ async function main() {
       selectedTask.filePath = targetPath;
       selectedTask.relativePath = path.relative(rootDir, targetPath).replace(/\\/g, '/');
       selectedTask.frontmatter = updated;
+
+      // 3. Commit and optionally push
+      console.log(`- Committing claim to ${options.base}...`);
+      runGit(['add', targetPath]);
+      if (targetPath !== selectedTask.filePath) {
+        runGit(['add', selectedTask.filePath], { allowFailure: true });
+      }
+      runGit(['commit', '-m', `[${taskId}] Claim: in_progress`]);
+
+      if (!options.skipPush) {
+        console.log(`- Pushing claim to origin/${options.base}...`);
+        runGit(['push', 'origin', options.base]);
+      }
     }
+
+    // 4. Switch to/Create task branch
+    const branchResult = createOrSwitchBranch(branchName, { dryRun: options.dryRun, resume: options.resume });
+    resumed = branchResult.reused && existingBranch;
   }
 
   const bundleDir = path.join(rootDir, '.cartograph', 'context');
