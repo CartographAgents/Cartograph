@@ -1,0 +1,38 @@
+name: Task Lifecycle Sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'agent-pack/04-task-system/tasks/pull_requested/**'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run lifecycle sync
+        run: node scripts/sync-task-lifecycle.mjs
+
+      - name: Commit and Push
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          if [[ -n $(git status --porcelain) ]]; then
+            git commit -m "chore: automated task lifecycle sync [pull_requested -> completed]"
+            git push
+          else
+            echo "No changes to commit."
+          fi

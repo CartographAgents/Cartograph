@@ -129,13 +129,12 @@ async function main() {
 
     console.log(`- Found task file: ${path.relative(rootDir, task)}`);
 
-    // 3. Update task file and move to completed
+    // 3. Update task file and move to pull_requested
     const { frontmatter, body } = readMarkdownWithFrontmatter(task);
 
     const updated = { ...frontmatter };
-    updated.status = 'completed';
-    updated.claim_status = 'released';
-    updated.claim_expires_at = null;
+    updated.status = 'pull_requested';
+    // claim_status remains 'claimed' since it's not yet released into 'completed'
     updated.last_updated = todayDateString();
 
     const targetPath = getTaskTargetPath(tasksDir, task, updated);
@@ -144,9 +143,9 @@ async function main() {
         console.log(`\n[DRY RUN] Would move and update task:`);
         console.log(`  From: ${path.relative(rootDir, task)}`);
         console.log(`  To:   ${path.relative(rootDir, targetPath)}`);
-        console.log(`  Status: completed, claim_status: released`);
+        console.log(`  Status: pull_requested`);
     } else {
-        console.log(`- Transitioning task to completed...`);
+        console.log(`- Transitioning task to pull_requested...`);
         fs.mkdirSync(path.dirname(targetPath), { recursive: true });
         writeMarkdownWithFrontmatter(targetPath, updated, body, TASK_KEY_ORDER);
 
@@ -165,15 +164,15 @@ async function main() {
 
     console.log(`\n[SUCCESS] ${taskId} closeout prepared.`);
     console.log(`\nSummary:`);
-    console.log(`- Task file moved to completed/ bucket.`);
-    console.log(`- Frontmatter updated (status: completed, claim_status: released).`);
+    console.log(`- Task file moved to pull_requested/ bucket.`);
+    console.log(`- Frontmatter updated (status: pull_requested).`);
     console.log(`- Changes staged for commit.`);
 
     console.log(`\nNext steps:`);
     console.log(`1. Review staged changes: git status`);
     console.log(`2. Commit work: git commit -m "[${taskId}] Closeout: completion of task goal"`);
-    console.log(`3. Push branch: git push origin ${branch}`);
-    console.log(`4. Re-run node scripts/cartograph-contribute.mjs --auto to start next task.`);
+    console.log(`3. Push branch and create Pull Request: git push origin ${branch}`);
+    console.log(`4. Upon merge to main, a GitHub Action will move the task to completed/.`);
 }
 
 main().catch((error) => {
