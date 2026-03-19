@@ -375,6 +375,15 @@ async function main() {
   assertRepoStructure(rootDir, config);
   ensureCleanWorktree(options.allowDirty || options.dryRun);
 
+  // 0. Pre-flight check: gh auth status (Skip if --skip-push or --dry-run)
+  if (!options.skipPush && !options.dryRun) {
+    const authCheck = spawnSync('gh', ['auth', 'status'], { stdio: 'pipe' });
+    if (authCheck.status !== 0) {
+      console.warn('\n[WARNING] GitHub CLI (gh) is not authenticated. PR creation will fail later.');
+      console.warn('Run \'gh auth login\' to authenticate before starting work.\n');
+    }
+  }
+
   const tasksRootRel = getWorkflowPath(config, 'tasks_root');
   const tasks = loadTasks(rootDir, tasksRootRel);
   const taskMap = new Map(tasks.map((task) => [String(task.frontmatter.id), task]));

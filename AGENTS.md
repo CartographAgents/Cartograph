@@ -38,6 +38,8 @@ When work is complete, run:
 - `node scripts/cartograph-closeout.mjs`
 - Non-interactive validation and status-move:
   - `node scripts/cartograph-closeout.mjs --task task-###`
+- **Automated PR creation**:
+  - `node scripts/cartograph-closeout.mjs --task task-### --create-pr`
 
 This command runs manifest and PR validation checks, moves the task to the `completed/` folder, and stages all changes for commit.
 

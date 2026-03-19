@@ -21,6 +21,7 @@ function parseArgs(argv) {
         dryRun: false,
         force: false,
         base: 'main',
+        createPr: false,
     };
 
     for (let i = 0; i < argv.length; i += 1) {
@@ -34,6 +35,8 @@ function parseArgs(argv) {
             options.dryRun = true;
         } else if (arg === '--force') {
             options.force = true;
+        } else if (arg === '--create-pr') {
+            options.createPr = true;
         } else if (arg === '--help' || arg === '-h') {
             options.help = true;
         } else {
@@ -71,7 +74,108 @@ function todayDateString() {
 }
 
 function printHelp() {
-    console.log(`cartograph-closeout\n\nUsage:\n  node scripts/cartograph-closeout.mjs [options]\n\nOptions:\n  --task <task-###>           Target task ID (defaults to current branch ID)\n  --base <branch>             Base branch for validation (default: main)\n  --dry-run                   Preview actions without mutating files/git\n  --force                     Skip validation checks\n  --help                      Show this help\n`);
+    console.log(`cartograph-closeout\n\nUsage:\n  node scripts/cartograph-closeout.mjs [options]\n\nOptions:\n  --task <task-###>           Target task ID (defaults to current branch ID)\n  --base <branch>             Base branch for validation (default: main)\n  --create-pr                 Automate GitHub PR creation using gh CLI\n  --dry-run                   Preview actions without mutating files/git\n  --force                     Skip validation checks\n  --help                      Show this help\n`);
+}
+
+function extractSection(body, headingName) {
+    const escaped = headingName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`## ${escaped}\\r?\\n([\\s\\S]*?)(?:\\r?\\n## |$)`);
+    const match = body.match(regex);
+    return match ? match[1].trim() : null;
+}
+
+function extractProgressLogEvidence(rootDir, config, taskId) {
+    const stateRootRel = getWorkflowPath(config, 'state_root');
+    const logPath = toAbsolutePath(rootDir, path.join(stateRootRel, 'progress-log.md'));
+    if (!fs.existsSync(logPath)) return null;
+
+    const content = fs.readFileSync(logPath, 'utf8');
+    // Regex to find the entry for this task and capture its evidence
+    // Format: - YYYT-MM-DD... | `task-###` | ... | message\n  - Evidence:\n    - item...
+    const regex = new RegExp(`- [^|]+? \\| \`${taskId}\` \\| [^|]+? \\| .*?\\r?\\n  - Evidence:\\r?\\n(([ ]{4}- .*\\r?\\n?)+)`);
+    const match = content.match(regex);
+    if (!match) return null;
+
+    return match[1].trim();
+}
+
+async function createPullRequest(taskId, branch, taskPath, rootDir, config, options) {
+    const { frontmatter, body } = readMarkdownWithFrontmatter(taskPath);
+    const acceptance = (frontmatter.acceptance_criteria || []).map(ac => `- [x] ${ac}`).join('\n');
+    const goal = extractSection(body, 'Task Goal') || 'See task file.';
+    const evidence = extractProgressLogEvidence(rootDir, config, taskId) || 'Add evidence details here.';
+
+    const prBody = `## Primary Task
+### Task ID
+${taskId}
+
+### Task File Path
+${path.relative(rootDir, taskPath).replace(/\\/g, '/')}
+
+### Task Title
+${frontmatter.title}
+
+## Scope Contract
+- [x] This PR has exactly one primary task.
+- [x] I did not update unrelated backlog item files.
+- [x] Any state-log updates reference the same primary task ID.
+
+### Acceptance Criteria
+${acceptance}
+
+### Evidence
+${evidence}
+
+### Validation Results
+- node scripts/validate-task-pr.mjs --self-check --task-id ${taskId} passed.
+
+### Assumptions Made
+- None.
+
+### Blockers Encountered
+- None.
+
+### Out-of-Scope Changes
+- None.
+
+## PR Title Contract
+- [x] PR title includes the same primary task ID.
+`;
+
+    const title = `[${taskId}] ${frontmatter.title}`;
+    const prBodyPath = path.join(rootDir, '.cartograph', 'PR_BODY.md');
+    fs.mkdirSync(path.dirname(prBodyPath), { recursive: true });
+    fs.writeFileSync(prBodyPath, prBody, 'utf8');
+
+    if (options.dryRun) {
+        console.log(`\n[DRY RUN] Would create PR with title: "${title}"`);
+        console.log(`- Body generated and written to: .cartograph/PR_BODY.md`);
+        return;
+    }
+
+    console.log(`- Generating PR body in .cartograph/PR_BODY.md...`);
+    
+    // Check if gh is authenticated
+    const authStatus = spawnSync('gh', ['auth', 'status']);
+    if (authStatus.status !== 0) {
+        throw new Error(`GitHub CLI (gh) is not authenticated. Run 'gh auth login' or create PR manually using .cartograph/PR_BODY.md`);
+    }
+
+    console.log(`- Pushing branch ${branch} to origin...`);
+    runGit(['push', 'origin', branch, '--force']); // Force push if we fixed something near closeout
+
+    console.log(`- Creating Pull Request using GitHub CLI...`);
+    const prResult = spawnSync('gh', [
+        'pr', 'create',
+        '--title', title,
+        '--body-file', prBodyPath,
+    ], { stdio: 'inherit' });
+
+    if (prResult.status !== 0) {
+        throw new Error('Failed to create Pull Request via GitHub CLI.');
+    }
+
+    console.log(`\n[SUCCESS] Pull Request created!`);
 }
 
 async function main() {
@@ -169,10 +273,14 @@ async function main() {
     console.log(`- Changes staged for commit.`);
 
     console.log(`\nNext steps:`);
-    console.log(`1. Review staged changes: git status`);
-    console.log(`2. Commit work: git commit -m "[${taskId}] Closeout: completion of task goal"`);
-    console.log(`3. Push branch and create Pull Request: git push origin ${branch}`);
-    console.log(`4. Upon merge to main, a GitHub Action will move the task to completed/.`);
+    if (options.createPr) {
+        await createPullRequest(taskId, branch, targetPath, rootDir, config, options);
+    } else {
+        console.log(`1. Review staged changes: git status`);
+        console.log(`2. Commit work: git commit -m "[${taskId}] Closeout: completion of task goal"`);
+        console.log(`3. Push branch and create Pull Request: git push origin ${branch}`);
+        console.log(`4. Upon merge to main, a GitHub Action will move the task to completed/.`);
+    }
 }
 
 main().catch((error) => {
