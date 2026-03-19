@@ -43,11 +43,12 @@ Define concrete, testable behaviors Cartograph must support in the next delivery
 - `FR-007` depends on stable architecture and task metadata contracts.
 
 ## Acceptance Mapping
+- `FR-003` -> tasks `task-010`, `task-025`.
 - `FR-004` -> tasks `task-001`, `task-002`, `task-003`.
 - `FR-005` -> tasks `task-004`, `task-006`.
-- `FR-007` -> tasks `task-013`, `task-014`.
+- `FR-007` -> tasks `task-013`, `task-014`, `task-019`, `task-020`, `task-021`, `task-022`, `task-024`.
 - `FR-009` -> tasks `task-009`, `task-011`, `task-012`.
-- `FR-010` -> tasks `task-017` and workflow docs.
+- `FR-010` -> tasks `task-017`, `task-018`, `task-023` and workflow docs.
 
 ## Update Cadence
 Update whenever capabilities are added, deprecated, or reprioritized.

@@ -19,10 +19,10 @@ Define execution order across atomic tasks so contributors can work autonomously
 
 ## Dependency Nodes
 - Backend hardening: `task-001`, `task-002`, `task-003`, `task-004`, `task-005`, `task-006`.
-- Frontend reliability: `task-007`, `task-008`, `task-009`, `task-010`.
+- Frontend reliability: `task-007`, `task-008`, `task-009`, `task-010`, `task-025`.
 - Provider reliability: `task-011`, `task-012`.
-- Export compiler: `task-013`, `task-014`.
-- Quality/CI: `task-015`, `task-016`, `task-017`.
+- Export compiler: `task-013`, `task-014`, `task-019`, `task-020`, `task-021`, `task-022`, `task-024`.
+- Quality/CI/Workflow: `task-015`, `task-016`, `task-017`, `task-018`, `task-023`.
 
 ## Dependency Edges
 - `task-002` depends on `task-001`.
@@ -33,9 +33,17 @@ Define execution order across atomic tasks so contributors can work autonomously
 - `task-015` depends on `task-007`, `task-013`.
 - `task-016` depends on `task-002`, `task-004`.
 - `task-017` depends on `task-015`, `task-016`.
+- `task-018` depends on `task-017`.
+- `task-019` depends on `task-014`.
+- `task-020` depends on `task-014`.
+- `task-021` depends on `task-019`.
+- `task-022` depends on `task-021`.
+- `task-023` depends on `task-018`.
+- `task-024` depends on `task-014`.
+- `task-025` depends on `task-010`.
 
 ## Critical Path
-`task-001 -> task-002 -> task-004 -> task-006 -> task-013 -> task-014 -> task-015 -> task-017`
+`task-001 -> task-002 -> task-004 -> task-006 -> task-013 -> task-014 -> task-015 -> task-017 -> task-018 -> task-023`
 
 ## Parallel-Safe Segments
 - `task-003`, `task-005`, `task-007`, `task-008`, `task-009`, `task-010`, `task-011` can begin after `task-001` kickoff as capacity allows.
