@@ -398,6 +398,59 @@ function getRelatedItemsLineIndexes(lines) {
   return relatedIndexes;
 }
 
+function getTaskProgressEntryBlocks(addedLines, taskId) {
+  const blocks = [];
+  const taskPattern = new RegExp(`^- .*\\| \`${escapeRegex(taskId)}\` \\| [^|]+\\|`);
+
+  for (let index = 0; index < addedLines.length; index += 1) {
+    const line = addedLines[index];
+    if (!taskPattern.test(line)) continue;
+
+    const block = [line];
+    for (let cursor = index + 1; cursor < addedLines.length; cursor += 1) {
+      const candidate = addedLines[cursor];
+      if (candidate.startsWith('- ')) break;
+      block.push(candidate);
+    }
+
+    blocks.push(block);
+  }
+
+  return blocks;
+}
+
+function validateProgressLogEntryForTask(addedLines, taskId) {
+  const entryBlocks = getTaskProgressEntryBlocks(addedLines, taskId);
+  const errors = [];
+
+  if (entryBlocks.length === 0) {
+    errors.push(`progress-log.md must add an entry for ${taskId} when transitioning task status to pull_requested/completed.`);
+    return errors;
+  }
+
+  const entryLine = entryBlocks[0][0];
+  const summaryMatch = entryLine.match(new RegExp(`\\| \`${escapeRegex(taskId)}\` \\| [^|]+\\|\\s*(.*)$`));
+  const summary = summaryMatch ? summaryMatch[1].trim() : '';
+  if (!summary) {
+    errors.push(`progress-log.md entry for ${taskId} must include a non-empty summary after the final pipe delimiter.`);
+  }
+
+  const evidenceHeaderIndex = entryBlocks[0].findIndex((line) => /^ {2}- Evidence:\s*$/.test(line));
+  if (evidenceHeaderIndex === -1) {
+    errors.push(`progress-log.md entry for ${taskId} must include an "  - Evidence:" section.`);
+  } else {
+    const evidenceLines = entryBlocks[0]
+      .slice(evidenceHeaderIndex + 1)
+      .filter((line) => /^ {4}-\s+\S+/.test(line));
+
+    if (evidenceLines.length === 0) {
+      errors.push(`progress-log.md entry for ${taskId} must include at least one evidence bullet under "  - Evidence:".`);
+    }
+  }
+
+  return errors;
+}
+
 function shouldStrictTaskPaths(options, policyValue) {
   if (options.strictTaskPaths) return true;
   const envValue = String(process.env.VALIDATE_TASK_PATH_POLICY || process.env.VALIDATE_TASK_PATH_STRICT || '').toLowerCase();
@@ -568,6 +621,7 @@ function main() {
     joinWorkflowPath(stateRoot, 'blockers.md'),
     joinWorkflowPath(stateRoot, 'decisions-log.md'),
   ];
+  const progressLogPath = joinWorkflowPath(stateRoot, 'progress-log.md');
 
   for (const logFile of logFiles) {
     if (!changedFiles.includes(logFile)) continue;
@@ -625,6 +679,16 @@ function main() {
 
       if (newStatus === 'pull_requested' && newClaim !== 'claimed') {
         addError(errors, `${primaryPath}: status=pull_requested requires claim_status=claimed.`);
+      }
+
+      if (primaryType === 'task' && ['pull_requested', 'completed', 'done'].includes(newStatus)) {
+        if (!changedFiles.includes(progressLogPath)) {
+          addError(errors, `Task transition to ${newStatus} requires ${progressLogPath} to include a new progress entry for ${primaryId}.`);
+        } else {
+          const progressAddedLines = getDiffAddedLines(progressLogPath, options);
+          const progressErrors = validateProgressLogEntryForTask(progressAddedLines, primaryId);
+          progressErrors.forEach((message) => addError(errors, message));
+        }
       }
     }
   }
