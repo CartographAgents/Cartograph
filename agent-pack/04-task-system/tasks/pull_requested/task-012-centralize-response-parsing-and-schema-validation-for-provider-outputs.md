@@ -2,7 +2,7 @@
 id: task-012
 title: Centralize response parsing and schema validation for provider outputs
 type: task
-status: in_progress
+status: pull_requested
 priority: P1
 owner: Eric Lott
 claim_owner: Eric Lott
