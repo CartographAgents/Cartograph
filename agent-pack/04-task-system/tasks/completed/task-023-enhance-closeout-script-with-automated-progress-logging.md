@@ -2,12 +2,12 @@
 id: task-023
 title: Enhance closeout script with automated progress logging
 type: task
-status: pull_requested
+status: completed
 priority: P1
 owner: Eric Lott
 claim_owner: Eric Lott
-claim_status: claimed
-claim_expires_at: "2026-03-21T00:22:08.258Z"
+claim_status: released
+claim_expires_at: null
 sla_due_at: "2026-05-30T23:59:00Z"
 depends_on:
   - task-018
