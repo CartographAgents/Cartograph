@@ -62,45 +62,78 @@ Pillar.belongsTo(Pillar, { as: 'parent', foreignKey: 'parentId' });
 
 sequelize.sync({ alter: true }).then(() => console.log('Database synced')).catch(console.error);
 
-app.get('/api/projects/latest', async (req, res) => {
+const getProjectTree = async (projectId) => {
+    const project = await Project.findByPk(projectId);
+    if (!project) return null;
+
+    const allPillars = await Pillar.findAll({
+        where: { ProjectId: project.id },
+        include: [Decision]
+    });
+
+    const buildPillarTree = (parentId = null) => {
+        return allPillars
+            .filter(p => p.parentId === parentId)
+            .map(p => ({
+                id: p.pillarId,
+                title: p.title,
+                description: p.description,
+                decisions: p.Decisions.map(d => ({
+                    id: d.decisionId,
+                    question: d.question,
+                    context: d.context,
+                    answer: d.answer
+                })),
+                subcategories: buildPillarTree(p.id)
+            }));
+    };
+
+    return {
+        projectId: project.id,
+        idea: project.idea,
+        pillars: buildPillarTree(null),
+        createdAt: project.createdAt
+    };
+};
+
+app.get('/api/projects', async (req, res) => {
     try {
-        const project = await Project.findOne({
+        const projects = await Project.findAll({
+            attributes: ['id', 'idea', 'createdAt'],
             order: [['createdAt', 'DESC']]
         });
+        res.json(projects);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
-        if (!project) {
-            return res.json({});
-        }
+app.get('/api/projects/latest', async (req, res) => {
+    try {
+        const project = await Project.findOne({ order: [['createdAt', 'DESC']] });
+        if (!project) return res.json({});
+        const tree = await getProjectTree(project.id);
+        res.json(tree);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
-        const allPillars = await Pillar.findAll({
-            where: { ProjectId: project.id },
-            include: [Decision]
-        });
+app.get('/api/projects/:id', async (req, res) => {
+    try {
+        const tree = await getProjectTree(req.params.id);
+        if (!tree) return res.status(404).json({ error: 'Project not found' });
+        res.json(tree);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
-        const buildPillarTree = (parentId = null) => {
-            return allPillars
-                .filter(p => p.parentId === parentId)
-                .map(p => ({
-                    id: p.pillarId,
-                    title: p.title,
-                    description: p.description,
-                    decisions: p.Decisions.map(d => ({
-                        id: d.decisionId,
-                        question: d.question,
-                        context: d.context,
-                        answer: d.answer
-                    })),
-                    subcategories: buildPillarTree(p.id)
-                }));
-        };
-
-        const pillarTree = buildPillarTree(null);
-
-        res.json({
-            projectId: project.id,
-            idea: project.idea,
-            pillars: pillarTree
-        });
+app.delete('/api/projects/:id', async (req, res) => {
+    try {
+        const deleted = await Project.destroy({ where: { id: req.params.id } });
+        if (!deleted) return res.status(404).json({ error: 'Project not found' });
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

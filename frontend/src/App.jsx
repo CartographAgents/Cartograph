@@ -4,9 +4,10 @@ import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import PillarWorkspace from './components/PillarWorkspace';
 import SettingsModal from './components/SettingsModal';
+import ProjectsPanel from './components/ProjectsPanel';
 import { generatePillarsFromIdea, processChatTurn, generateCategoriesForPillar } from './services/agentService';
 import { generateBlueprintZip } from './services/exportService';
-import { saveStateToBackend, fetchLatestProject } from './services/apiService';
+import { saveStateToBackend, fetchLatestProject, fetchProjectById } from './services/apiService';
 
 function App() {
   const [messages, setMessages] = useState([
@@ -18,6 +19,7 @@ function App() {
   const [agentFeedback, setAgentFeedback] = useState([]);
   const [projectId, setProjectId] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [isProjectsOpen, setIsProjectsOpen] = useState(false);
 
   useEffect(() => {
     async function hydrate() {
@@ -43,6 +45,40 @@ function App() {
   }, []);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const handleNewProject = () => {
+    setProjectId(null);
+    setPillars([]);
+    setActivePillarId(null);
+    setAgentFeedback([]);
+    setMessages([
+      { role: 'agent', content: "New session started! Describe the application you want to build, and I'll generate the architectural pillars for us to work through." }
+    ]);
+  };
+
+  const handleSelectProject = async (id) => {
+    setIsWaiting(true);
+    setIsProjectsOpen(false);
+    try {
+      const data = await fetchProjectById(id);
+      if (data) {
+        setProjectId(data.projectId);
+        setPillars(data.pillars || []);
+        setActivePillarId(null);
+        setMessages([
+          { role: 'agent', content: "I've restored your session. The architectural framework is fully staged! Which area would you like to discuss first?" },
+          { role: 'user', content: data.idea },
+          { role: 'agent', content: "Restored from your project history. What would you like to refine?" }
+        ]);
+      }
+    } catch (err) {
+      console.error("Failed to load project:", err);
+      setErrorMessage("Could not load the selected project.");
+    } finally {
+      setIsWaiting(false);
+    }
+  };
+
   const [llmConfig, setLlmConfig] = useState(() => {
     const savedKeys = localStorage.getItem('cartograph_keys');
     const savedProvider = localStorage.getItem('cartograph_provider');
@@ -218,6 +254,14 @@ function App() {
 
   return (
     <div className="app-layout">
+      <ProjectsPanel
+        currentProjectId={projectId}
+        isOpen={isProjectsOpen}
+        onSelectProject={handleSelectProject}
+        onNewProject={handleNewProject}
+        onToggle={() => setIsProjectsOpen(!isProjectsOpen)}
+      />
+
       {isSettingsOpen && (
         <SettingsModal
           onClose={() => setIsSettingsOpen(false)}
