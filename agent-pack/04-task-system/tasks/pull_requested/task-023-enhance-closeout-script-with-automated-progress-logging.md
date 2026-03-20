@@ -2,7 +2,7 @@
 id: task-023
 title: Enhance closeout script with automated progress logging
 type: task
-status: in_progress
+status: pull_requested
 priority: P1
 owner: Eric Lott
 claim_owner: Eric Lott

@@ -23,6 +23,7 @@ function parseArgs(argv) {
         force: false,
         base: 'main',
         createPr: false,
+        evidence: [],
     };
 
     for (let i = 0; i < argv.length; i += 1) {
@@ -32,6 +33,12 @@ function parseArgs(argv) {
             options.taskId = argv[++i];
         } else if (arg === '--base') {
             options.base = argv[++i];
+        } else if (arg === '--summary') {
+            options.summary = argv[++i];
+        } else if (arg === '--evidence') {
+            options.evidence.push(argv[++i]);
+        } else if (arg === '--next-step') {
+            options.nextStep = argv[++i];
         } else if (arg === '--dry-run') {
             options.dryRun = true;
         } else if (arg === '--force') {
@@ -88,8 +95,154 @@ function todayDateString() {
     return new Date().toISOString().slice(0, 10);
 }
 
+function formatTimestampWithOffset(date = new Date()) {
+    const pad = (value) => String(value).padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    const seconds = pad(date.getSeconds());
+
+    const offsetMinutes = -date.getTimezoneOffset();
+    const sign = offsetMinutes >= 0 ? '+' : '-';
+    const absoluteOffsetMinutes = Math.abs(offsetMinutes);
+    const offsetHours = pad(Math.floor(absoluteOffsetMinutes / 60));
+    const offsetRemainderMinutes = pad(absoluteOffsetMinutes % 60);
+
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${sign}${offsetHours}:${offsetRemainderMinutes}`;
+}
+
+function normalizeListFromArgs(rawValues) {
+    const values = Array.isArray(rawValues) ? rawValues : [];
+    const expanded = values
+        .flatMap(value => String(value || '').split(','))
+        .map(value => value.trim())
+        .filter(Boolean);
+
+    return [...new Set(expanded)];
+}
+
+function parseChangedFilesOutput(stdout) {
+    return String(stdout || '')
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean);
+}
+
+function getRecentChangedFiles(baseBranch) {
+    const files = new Set();
+
+    const branchDiff = runGit(
+        ['diff', '--name-only', `origin/${baseBranch}...HEAD`],
+        { allowFailure: true }
+    );
+    parseChangedFilesOutput(branchDiff.stdout).forEach(file => files.add(file));
+
+    getUncommittedChanges().forEach(file => files.add(file));
+
+    return Array.from(files);
+}
+
+async function collectProgressLogInput(taskId, options, suggestedEvidence) {
+    let summary = String(options.summary || '').trim();
+    let evidence = normalizeListFromArgs(options.evidence);
+    const nextStep = String(options.nextStep || 'Open Pull Request for review.').trim();
+    const canPrompt = process.stdin.isTTY && process.stdout.isTTY;
+
+    const visibleSuggestions = suggestedEvidence.filter(
+        file => !file.includes('/.cartograph/') && !file.includes('\\.cartograph\\')
+    );
+
+    if (visibleSuggestions.length > 0) {
+        console.log(`- Suggested evidence files from recent changes:`);
+        visibleSuggestions.forEach(file => console.log(`  - ${file}`));
+    } else {
+        console.log(`- No changed-file evidence suggestions detected automatically.`);
+    }
+
+    if ((!summary || evidence.length === 0) && canPrompt) {
+        const rl = createInterface({ input, output });
+        try {
+            if (!summary) {
+                summary = (await rl.question('Progress summary for this task: ')).trim();
+            }
+
+            if (evidence.length === 0) {
+                const prompt = visibleSuggestions.length > 0
+                    ? 'Evidence files (comma-separated, press Enter to use suggested files): '
+                    : 'Evidence files (comma-separated): ';
+                const evidenceAnswer = (await rl.question(prompt)).trim();
+
+                if (evidenceAnswer) {
+                    evidence = normalizeListFromArgs([evidenceAnswer]);
+                } else if (visibleSuggestions.length > 0) {
+                    evidence = visibleSuggestions;
+                }
+            }
+        } finally {
+            rl.close();
+        }
+    }
+
+    if (!summary) {
+        throw new Error('Closeout requires a progress summary. Provide --summary or run in an interactive terminal.');
+    }
+
+    if (evidence.length === 0 && visibleSuggestions.length > 0) {
+        evidence = visibleSuggestions;
+    }
+
+    if (evidence.length === 0) {
+        throw new Error('Closeout requires at least one evidence item. Provide --evidence or ensure changed files are detected.');
+    }
+
+    return { summary, evidence, nextStep };
+}
+
+function appendProgressLogEntry({ rootDir, config, taskId, summary, evidence, nextStep, dryRun }) {
+    const stateRootRel = getWorkflowPath(config, 'state_root');
+    const progressLogPath = toAbsolutePath(rootDir, path.join(stateRootRel, 'progress-log.md'));
+
+    if (!fs.existsSync(progressLogPath)) {
+        throw new Error(`Progress log not found: ${path.relative(rootDir, progressLogPath)}`);
+    }
+
+    const content = fs.readFileSync(progressLogPath, 'utf8');
+    const existingEntryPattern = new RegExp(`^- .*\\| \`${taskId}\` \\|`, 'm');
+
+    if (existingEntryPattern.test(content)) {
+        console.log(`- Progress log already contains an entry for ${taskId}; skipping auto-append.`);
+        return { progressLogPath, appended: false };
+    }
+
+    const entryLines = [
+        `- ${formatTimestampWithOffset()} | \`${taskId}\` | \`done\` | ${summary}`,
+        '  - Evidence:',
+        ...evidence.map(item => `    - \`${item}\``),
+        `  - Next step: ${nextStep}`,
+    ];
+    const entryBlock = `${entryLines.join('\n')}\n`;
+
+    if (!content.includes('## Latest Entries')) {
+        throw new Error('progress-log.md is missing the "## Latest Entries" section.');
+    }
+
+    const updatedContent = content.replace(/(## Latest Entries\r?\n)/, `$1${entryBlock}`);
+
+    if (dryRun) {
+        console.log(`\n[DRY RUN] Would append progress-log entry for ${taskId}:`);
+        entryLines.forEach(line => console.log(`  ${line}`));
+        return { progressLogPath, appended: true };
+    }
+
+    fs.writeFileSync(progressLogPath, updatedContent, 'utf8');
+    console.log(`- Appended progress-log entry in ${path.relative(rootDir, progressLogPath)}.`);
+    return { progressLogPath, appended: true };
+}
+
 function printHelp() {
-    console.log(`cartograph-closeout\n\nUsage:\n  node scripts/cartograph-closeout.mjs [options]\n\nOptions:\n  --task <task-###>           Target task ID (defaults to current branch ID)\n  --base <branch>             Base branch for validation (default: main)\n  --create-pr                 Automate GitHub PR creation using gh CLI\n  --dry-run                   Preview actions without mutating files/git\n  --force                     Skip validation checks\n  --help                      Show this help\n`);
+    console.log(`cartograph-closeout\n\nUsage:\n  node scripts/cartograph-closeout.mjs [options]\n\nOptions:\n  --task <task-###>           Target task ID (defaults to current branch ID)\n  --base <branch>             Base branch for validation (default: main)\n  --summary "<text>"          Progress-log summary for this closeout\n  --evidence "<path>"         Evidence item (repeatable or comma-separated)\n  --next-step "<text>"        Optional next-step line for progress log entry\n  --create-pr                 Automate GitHub PR creation using gh CLI\n  --dry-run                   Preview actions without mutating files/git\n  --force                     Skip validation checks\n  --help                      Show this help\n`);
 }
 
 function extractSection(body, headingName) {
@@ -226,30 +379,35 @@ async function main() {
         }
     }
 
-    // 1. Preflight Validation
+    // 1. Manifest preflight
     if (!options.force) {
         console.log(`- Running manifest path usage check...`);
         const manifestCheck = spawnSync('node', ['scripts/check-manifest-path-usage.mjs'], { stdio: 'inherit' });
         if (manifestCheck.status !== 0) {
             throw new Error('Manifest path usage check failed. Resolve errors before closeout.');
         }
-
-        console.log(`- Running task PR validation (base: ${options.base})...`);
-        const validateCheck = spawnSync('node', [
-            'scripts/validate-task-pr.mjs',
-            '--self-check',
-            '--task-id', taskId,
-            '--base', options.base
-        ], { stdio: 'inherit' });
-
-        if (validateCheck.status !== 0) {
-            throw new Error(`Validation failed for ${taskId}. Ensure progress/change logs are updated and reference ${taskId}.`);
-        }
     } else {
-        console.log(`- Skipping validation checks (--force).`);
+        console.log(`- Skipping manifest validation (--force).`);
     }
 
-    // 2. Find the task file
+    // 2. Capture progress log details and append entry
+    const suggestedEvidence = getRecentChangedFiles(options.base);
+    const progressInput = await collectProgressLogInput(taskId, options, suggestedEvidence);
+    const progressResult = appendProgressLogEntry({
+        rootDir,
+        config,
+        taskId,
+        summary: progressInput.summary,
+        evidence: progressInput.evidence,
+        nextStep: progressInput.nextStep,
+        dryRun: options.dryRun,
+    });
+
+    if (!options.dryRun && progressResult.appended) {
+        runGit(['add', progressResult.progressLogPath]);
+    }
+
+    // 3. Find the task file
     const tasksDir = toAbsolutePath(rootDir, tasksRootRel);
 
     // Ensure uniqueness before proceeding
@@ -265,7 +423,7 @@ async function main() {
 
     console.log(`- Found task file: ${path.relative(rootDir, task)}`);
 
-    // 3. Update task file and move to pull_requested
+    // 4. Update task file and move to pull_requested
     const { frontmatter, body } = readMarkdownWithFrontmatter(task);
 
     const updated = { ...frontmatter };
@@ -290,12 +448,31 @@ async function main() {
             console.log(`- Moved to: ${path.relative(rootDir, targetPath)}`);
         }
 
-        // 4. Git staging
+        // 5. Git staging
         console.log(`- Staging closeout changes...`);
         runGit(['add', targetPath]);
         if (targetPath !== task) {
             runGit(['add', task], { allowFailure: true }); // Catch the deletion if original was in git
         }
+    }
+
+    // 6. Task PR validation with progress-log enforcement
+    if (options.dryRun) {
+        console.log(`- Skipping task PR validation in dry-run mode.`);
+    } else if (!options.force) {
+        console.log(`- Running task PR validation (base: ${options.base})...`);
+        const validateCheck = spawnSync('node', [
+            'scripts/validate-task-pr.mjs',
+            '--self-check',
+            '--task-id', taskId,
+            '--base', options.base
+        ], { stdio: 'inherit' });
+
+        if (validateCheck.status !== 0) {
+            throw new Error(`Validation failed for ${taskId}. Ensure task scope, progress log summary, and evidence are valid.`);
+        }
+    } else {
+        console.log(`- Skipping task PR validation (--force).`);
     }
 
     console.log(`\n[SUCCESS] ${taskId} closeout prepared.`);
