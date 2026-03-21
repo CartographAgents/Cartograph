@@ -136,6 +136,61 @@ Cartograph outputs are:
 
 ---
 
+## The Living Decision System
+
+Treat each decision as both a **document** and a **node**.
+
+### How it works
+
+1. **A decision is captured in a structured shape**
+Each decision is stored with both **semantic meaning** (via embeddings) and **hard relationships** (via graph edges).
+   * **Fields:** title, summary, rationale, constraints, status, owner, tags, related artifacts.
+   * **Relationships:** supports, conflicts_with, depends_on, supersedes, derived_from, impacts.
+
+2. **The decision gets vectorized**
+The system generates an embedding from the core content to find similar decisions, cluster themes, suggest duplicates, and surface nearby tradeoffs.
+
+3. **The decision also gets linked in a graph**
+Vectors tell you “these feel related,” but graph edges tell you “this one blocks that one” or “this one replaced an earlier choice.” Without the graph, the UI is vague; without vectors, it is rigid.
+
+4. **The system infers candidate relationships**
+Using nearest neighbor search and LLM analysis, the app proposes likely conflicts, dependencies, or duplicates as **suggestions** for the user to confirm.
+
+5. **The user confirms or edits the relationships**
+This progressive feedback loop creates a smarter map over time, moving from "API auth strategy" to "identity provider selection" with intentionality.
+
+---
+
+## The Multi-View Interface
+
+The UI serves as a multi-mode lens into the architecture, ensuring both discovery and rigid execution are supported:
+
+* **Decision Graph View (Operational Core):** The main visual map. Nodes show status/type; edges show meaning (solid for dependencies, red for conflicts, dashed for related, arrows for flow). Glows or badges highlight unresolved conflicts.
+* **Semantic Cluster View (Discovery Layer):** A spatial 2D canvas grouping decisions by similarity (e.g., Auth, Data, Infra) to identify emerging topics and overlapping conversations.
+* **Mind Map / Hierarchy View (Planning Layer):** A clean, executive-friendly view rooted in Product/Feature branches (Security, Data, API, etc.).
+* **Conflict View:** A focused mode for all unresolved conflicts, impacted systems, risk levels, and recommended next steps.
+* **Dependency Path View:** An execution-oriented mode showing prerequisites and downstream effects for a selected decision to guide agent tasks.
+
+### UI Layout Pattern
+
+* **Left Sidebar:** Search, filters (tags, status, domain, owner), and quick toggles for "unresolved only."
+* **Main Canvas:** Switchable tabs for Graph, Mind Map, Clusters, Dependencies, and Timeline.
+* **Right Panel:** Selected decision details (summary, rationale, alternatives), implementation impact, and suggested links.
+* **Top Bar:** Global actions—Add Decision, Compare, Resolve Conflict, Generate Summary.
+
+### Interaction Flow
+
+When a user adds a decision (e.g., *"Use Azure AD B2C for external identity"*):
+1. The system places it under **Identity / Security**.
+2. Suggests related decisions and flags potential conflicts (e.g., with local password auth).
+3. Shows downstream impacts (e.g., user profile schema, onboarding flow).
+4. The graph updates live: a red edge appears for conflicts, and nearby cluster nodes shift slightly in the semantic view.
+
+### Value Proposition
+A normal mind map is static. Cartograph transforms messy architectural thinking into a **living decision system** that preserves tradeoffs, surfaces contradictions, and converts ideas into actionable execution plans for humans and agents alike.
+
+---
+
 # Pack Intent
 
 The Cartograph pack is a **self-contained execution system**, not just documentation.
