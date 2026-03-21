@@ -2,21 +2,22 @@
 id: task-024
 title: Add security guardrails and metadata to exported pack
 type: task
-status: todo
+status: in_progress
 priority: P1
-owner: unassigned
-claim_owner: unassigned
-claim_status: unclaimed
-claim_expires_at: null
-sla_due_at: 2026-06-05T23:59:00Z
+owner: Eric Lott
+claim_owner: Eric Lott
+claim_status: claimed
+claim_expires_at: "2026-03-22T04:00:18.161Z"
+sla_due_at: "2026-06-05T23:59:00Z"
 depends_on:
   - task-014
 acceptance_criteria:
-  - Export zip does not contain sensitive data from `localStorage` or environment.
-  - Generate a `cartograph-manifest.json` in the export root with metadata (project ID, version, export time).
-  - Include a `SECURITY.md` in the export `03-agent-ops/` folder.
-last_updated: 2026-03-19
+  - "Export zip does not contain sensitive data from `localStorage` or environment."
+  - "Generate a `cartograph-manifest.json` in the export root with metadata (project ID, version, export time)."
+  - "Include a `SECURITY.md` in the export `03-agent-ops/` folder."
+last_updated: 2026-03-21
 ---
+
 
 # Task: Add security guardrails and metadata to exported pack
 
