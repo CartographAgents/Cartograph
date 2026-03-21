@@ -2,20 +2,21 @@
 id: task-021
 title: Organize exported tasks into workstream folders
 type: task
-status: todo
+status: in_progress
 priority: P1
-owner: unassigned
-claim_owner: unassigned
-claim_status: unclaimed
-claim_expires_at: null
-sla_due_at: 2026-05-20T23:59:00Z
+owner: Eric Lott
+claim_owner: Eric Lott
+claim_status: claimed
+claim_expires_at: "2026-03-22T04:02:31.289Z"
+sla_due_at: "2026-05-20T23:59:00Z"
 depends_on:
   - task-019
 acceptance_criteria:
-  - Tasks in the export zip are grouped into sub-folders within `tasks/todo/` based on their parent workstream (pillar).
-  - Exported pack includes a `workstreams.md` file summarizing major architecture areas.
-last_updated: 2026-03-19
+  - "Tasks in the export zip are grouped into sub-folders within `tasks/todo/` based on their parent workstream (pillar)."
+  - "Exported pack includes a `workstreams.md` file summarizing major architecture areas."
+last_updated: 2026-03-21
 ---
+
 
 # Task: Organize exported tasks into workstream folders
 
