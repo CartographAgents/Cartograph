@@ -2,22 +2,23 @@
 id: task-027
 title: Migrate LLM provider logic to backend proxy
 type: task
-status: todo
+status: in_progress
 priority: P1
-owner: security
-claim_owner: null
-claim_status: released
-claim_expires_at: null
+owner: Eric Lott
+claim_owner: Eric Lott
+claim_status: claimed
+claim_expires_at: "2026-03-22T19:07:23.055Z"
 sla_due_at: "2026-04-15T23:59:00Z"
 depends_on:
   - task-011
   - task-012
 acceptance_criteria:
-  - Frontend `agentService.js` no longer contains API keys or direct provider URLs in fetch calls.
-  - All LLM requests are routed through a new `/api/agent/complete` endpoint.
+  - "Frontend `agentService.js` no longer contains API keys or direct provider URLs in fetch calls."
+  - "All LLM requests are routed through a new `/api/agent/complete` endpoint."
   - Backend securely retrieves keys from environment variables or a managed vault (overriding client keys if present).
-last_updated: 2026-03-20
+last_updated: 2026-03-21
 ---
+
 
 # Task: Migrate LLM provider logic to backend proxy
 
