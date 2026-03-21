@@ -2,12 +2,12 @@
 id: task-031
 title: Implement Scaffolding Generation in exportService.js
 type: task
-status: pull_requested
+status: completed
 priority: P1
 owner: Eric Lott
 claim_owner: Eric Lott
-claim_status: claimed
-claim_expires_at: "2026-03-22T00:00:00.000Z"
+claim_status: released
+claim_expires_at: null
 sla_due_at: 2026-03-22
 depends_on:
   - feat-008
