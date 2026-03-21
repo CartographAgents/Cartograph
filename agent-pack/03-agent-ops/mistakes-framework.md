@@ -37,7 +37,6 @@ Copy this block for each new entry.
 - Status: open | mitigated | verified
 - Verification evidence:
 ```
-
 ## Mistake Log
 
 ### M-20260320-01
@@ -52,6 +51,18 @@ Copy this block for each new entry.
 - Owner: Eric Lott
 - Status: mitigated
 - Verification evidence: Successful closeout and PR creation for task-021 after manual `git reset --hard origin/main`.
+
+### M-20260321-02
+- Date: 2026-03-21
+- Agent/session: Antigravity / ed4f758c-f6d6-410b-9bcf-d3ed0c9eb0db
+- Task ID: task-010
+- Summary: Direct push to `main` branch bypassing the single-task PR workflow and branching contract.
+- Impact: Architectural integrity risk and violation of the "Single-Task PR Contract," leading to immediate merge without review.
+- Detection: Intentional review of `AGENTS.md` after work completion.
+- Root cause: Ignored a non-zero exit code from `cartograph-contribute.mjs --auto` and proceeded to work on `main` without verifying a task-specific branch was active.
+- Prevention action: Update `AGENTS.md` to explicitly mandate a branch verification step (`task/task-###-*`) before implementation and require immediate stop on bootstrap script failures.
+- Owner: Eric Lott
+- Status: open
 
 ## Reuse Rules For Future Agents
 - Before starting implementation, read the latest 5 entries.
