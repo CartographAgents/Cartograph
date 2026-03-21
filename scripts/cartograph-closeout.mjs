@@ -17,6 +17,15 @@ import {
     toAbsolutePath,
 } from './lib/workflow-config.mjs';
 
+function assertDependencies(rootDir) {
+    const folders = ['frontend', 'backend'];
+    const missing = folders.filter(folder => !fs.existsSync(path.join(rootDir, folder, 'node_modules')));
+
+    if (missing.length > 0) {
+        throw new Error(`Missing dependencies in: ${missing.join(', ')}. Please run 'npm install' in the respective folder(s) before proceeding.`);
+    }
+}
+
 function parseArgs(argv) {
     const options = {
         dryRun: false,
@@ -365,8 +374,11 @@ ${tasksData.map(t => `- node scripts/validate-task-pr.mjs --self-check --task-id
         throw new Error(`GitHub CLI (gh) is not authenticated. Run 'gh auth login' or create PR manually using .cartograph/PR_BODY.md`);
     }
 
-    console.log(`- Pushing branch ${branch} to origin...`);
-    runGit(['push', 'origin', branch, '--force']); // Force push if we fixed something near closeout
+    console.log(`- Pushing branch ${branch} to origin (force)...`);
+    const pushResult = spawnSync('git', ['push', 'origin', branch, '--force'], { stdio: 'inherit' });
+    if (pushResult.status !== 0) {
+        throw new Error(`Failed to push branch ${branch} to origin.`);
+    }
 
     console.log(`- Creating Pull Request using GitHub CLI...`);
     const prResult = spawnSync('gh', [
@@ -392,6 +404,7 @@ async function main() {
 
     const rootDir = process.cwd();
     const config = loadWorkflowConfig(rootDir);
+    assertDependencies(rootDir);
     const tasksRootRel = getWorkflowPath(config, 'tasks_root');
 
     const branch = getCurrentBranch();

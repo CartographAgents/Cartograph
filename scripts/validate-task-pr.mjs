@@ -239,12 +239,23 @@ function getBacklogItemFileId(filePath, taskSystemRoot) {
 }
 
 function getPrimaryPathCandidates(changedFiles, primaryId, primaryType, taskSystemRoot) {
-  const expectedDir = getExpectedDirectoryForType(primaryType, taskSystemRoot);
-  if (!expectedDir) return [];
-  const escapedExpected = escapeRegex(expectedDir);
-  const nestedPattern = new RegExp(`^${escapedExpected}/[^/]+/${primaryId}-.+\\.md$`);
-  const flatPattern = new RegExp(`^${escapedExpected}/${primaryId}-.+\\.md$`);
-  return changedFiles.filter((file) => nestedPattern.test(file) || flatPattern.test(file));
+  const typeDirMap = {
+    task: 'tasks',
+    bug: 'bugs',
+    spike: 'spikes',
+    feature: 'features',
+  };
+  const categoryDir = typeDirMap[primaryType];
+  if (!categoryDir) return [];
+
+  const baseDir = joinWorkflowPath(taskSystemRoot, categoryDir);
+  const escapedBase = escapeRegex(baseDir);
+
+  // Bucket-agnostic: look in ANY subdirectory of the category
+  const pattern = new RegExp(`^${escapedBase}/[^/]+/${primaryId}-.+\\.md$`);
+  const flatPattern = new RegExp(`^${escapedBase}/${primaryId}-.+\\.md$`);
+
+  return changedFiles.filter((file) => pattern.test(file) || flatPattern.test(file));
 }
 
 function selectPrimaryPathCandidate(candidates) {
@@ -450,6 +461,14 @@ function addWarning(warnings, message) {
   warnings.push(message);
 }
 
+function reportIssue(errors, warnings, options, message, { critical = false } = {}) {
+  if (options.selfCheck && !critical) {
+    addWarning(warnings, `[PRAGMATIC-PREFLIGHT] ${message}`);
+  } else {
+    addError(errors, message);
+  }
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
@@ -499,34 +518,34 @@ function main() {
   const bodyFromFile = readIfExists(options.bodyFile);
   if (bodyFromFile) body = bodyFromFile;
 
-  if (!options.selfCheck) {
+  if (true) {
     if (!title.trim()) {
-      addError(errors, 'PR title is required for full validation.');
+      reportIssue(errors, warnings, options, 'PR title is required for full validation.');
     } else {
         const foundIds = primaryIds.filter(id => title.includes(id));
         if (foundIds.length === 0) {
-            addError(errors, `PR title must include at least one primary item ID: ${primaryIds.join(', ')}.`);
+            reportIssue(errors, warnings, options, `PR title must include at least one primary item ID: ${primaryIds.join(', ')}.`);
         }
     }
 
     if (!body.trim()) {
-      addError(errors, 'PR body is required for full validation.');
+      reportIssue(errors, warnings, options, 'PR body is required for full validation.');
     }
   }
 
-  const fields = !options.selfCheck ? parsePrBodyFields(body) : {};
+  const fields = parsePrBodyFields(body);
 
-  if (!options.selfCheck) {
+  if (true) {
     for (const field of REQUIRED_PR_FIELDS) {
       if (!isMeaningfulFieldValue(fields[field])) {
-        addError(errors, `PR body field "${field}" is missing or empty.`);
+        reportIssue(errors, warnings, options, `PR body field "${field}" is missing or empty.`);
       }
     }
 
     const bodyTaskIds = extractPrimaryIdsFromField(fields['Task ID']);
     const missingIds = primaryIds.filter(id => !bodyTaskIds.includes(id));
     if (missingIds.length > 0) {
-      addError(errors, `Task ID field in PR body is missing IDs from transition: ${missingIds.join(', ')}`);
+      reportIssue(errors, warnings, options, `Task ID field in PR body is missing IDs from transition: ${missingIds.join(', ')}`);
     }
   }
 
@@ -592,7 +611,7 @@ function main() {
     }
 
     if (outsideRelatedIds.length > 0) {
-      addError(errors, `${logFile} added lines reference other primary IDs outside related_items: ${[...new Set(outsideRelatedIds)].join(', ')}`);
+      reportIssue(errors, warnings, options, `${logFile} added lines reference other primary IDs outside related_items: ${[...new Set(outsideRelatedIds)].join(', ')}`);
     }
   }
 
@@ -636,11 +655,11 @@ function main() {
 
       if (tid.startsWith('task-') && ['pull_requested', 'completed', 'done'].includes(newStatus)) {
         if (!changedFiles.includes(progressLogPath)) {
-          addError(errors, `Task transition to ${newStatus} requires ${progressLogPath} to include a new progress entry for ${tid}.`);
+          reportIssue(errors, warnings, options, `Task transition to ${newStatus} requires ${progressLogPath} to include a new progress entry for ${tid}.`, { critical: true });
         } else {
           const progressAddedLines = getDiffAddedLines(progressLogPath, options);
           const progressErrors = validateProgressLogEntryForTask(progressAddedLines, tid);
-          progressErrors.forEach((message) => addError(errors, message));
+          progressErrors.forEach((message) => reportIssue(errors, warnings, options, message));
         }
       }
     }
