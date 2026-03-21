@@ -2,13 +2,13 @@
 id: task-017
 title: Add CI workflow for lint build and test enforcement
 type: task
-status: todo
+status: in_progress
 priority: P1
-owner: unassigned
-claim_owner: unassigned
-claim_status: unclaimed
-claim_expires_at: null
-sla_due_at: 2026-05-05T23:59:00Z
+owner: Eric Lott
+claim_owner: Eric Lott
+claim_status: claimed
+claim_expires_at: "2026-03-22T02:33:32.384Z"
+sla_due_at: "2026-05-05T23:59:00Z"
 depends_on:
   - task-015
   - task-016
@@ -16,8 +16,9 @@ acceptance_criteria:
   - PRs run required quality checks automatically.
   - Failed checks block merge readiness until resolved.
   - Contributor docs reflect CI expectations.
-last_updated: 2026-03-19
+last_updated: 2026-03-21
 ---
+
 
 # Task: Add CI workflow for lint build and test enforcement
 
