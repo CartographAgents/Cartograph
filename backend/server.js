@@ -3,6 +3,7 @@ const cors = require('cors');
 const db = require('./models');
 const { sequelize } = db;
 const projectRoutes = require('./routes/projectRoutes');
+const agentRoutes = require('./routes/agentRoutes');
 
 const models = { Project: db.Project, Pillar: db.Pillar, Decision: db.Decision };
 
@@ -31,6 +32,7 @@ app.get('/api/health', async (req, res) => {
 
 // Routes
 app.use('/api', projectRoutes);
+app.use('/api', agentRoutes);
 
 const PORT = Number(process.env.PORT || 3000);
 

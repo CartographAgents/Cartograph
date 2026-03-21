@@ -40,11 +40,23 @@ next_step: Add retrieval endpoint and integration tests.
 ```
 
 ## Latest Entries
+- 2026-03-21T14:15:13-05:00 | `task-027` | `done` | Migrate LLM provider logic to backend proxy
+  - Evidence:
+    - `backend/services/agentService.js`
+    - `backend/routes/agentRoutes.js`
+    - `frontend/src/services/agentService.js`
+  - Next step: Open Pull Request for review.
 - 2026-03-21T14:01:36-05:00 | `task-029` | `done` | Populate full 00-07 directory structure in export
   - Evidence:
     - `frontend/src/services/exportService.js`
     - `frontend/src/test/exportService.test.js`
   - Next step: Open Pull Request for review.
+- 2026-03-22T14:15:00-05:00 | task-027 | in_progress | Migrated LLM provider logic to backend proxy. Created `/api/agent/complete` endpoint and `agentService.js` in backend. Removed direct LLM calls from frontend. Improved security by preferring environment variables for API keys on the server.
+  - Evidence:
+    - backend/services/agentService.js
+    - backend/routes/agentRoutes.js
+    - frontend/src/services/agentService.js
+  - Next step: Close out task and verify mission complete.
 - 2026-03-22T14:00:00-05:00 | task-029 | in_progress | Expanded exportService to generate full 00-07 directory structure. Added templates for AGENTS.md, DefinitionOfDone.md, and refined pillar-to-document mapping in 01-architecture. Renamed 06-research to 06-quality.
   - Evidence:
     - frontend/src/services/exportService.js
