@@ -40,6 +40,11 @@ next_step: Add retrieval endpoint and integration tests.
 ```
 
 ## Latest Entries
+- 2026-03-20T21:51:20-05:00 | `task-019` | `done` | Implemented hierarchy-based dependency tracking in exportService.js and verified with Vitest.
+  - Evidence:
+    - `frontend/src/services/exportService.js`
+    - `frontend/src/test/exportService.test.js`
+  - Next step: Open Pull Request for review.
 - 2026-03-21T21:15:00-05:00 | `task-015` | `done` | Introduced frontend automated testing with Vitest and JSDOM. Added regression tests for ChatInterface safe rendering and exportService zip generation guardrails.
   - Evidence:
     - `frontend/package.json`
