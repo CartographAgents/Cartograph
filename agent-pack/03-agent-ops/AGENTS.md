@@ -43,6 +43,7 @@ Contribute reliably to Cartograph by either:
 13. `../07-artifacts/user-flows.md`
 14. `../05-state/*` for current execution state
 15. `./mistakes-framework.md` for known failure patterns and safeguards
+16. `./*` (all agent operation rules and contracts)
 
 ### Step 2: Familiarize With Codebase
 Read these files before coding:
@@ -150,6 +151,13 @@ Execution rules:
     - `node scripts/check-manifest-path-usage.mjs`
     - `node scripts/validate-task-pr.mjs --self-check --task-id task-###`
     - `node scripts/validate-task-pr.mjs --self-check --task-id task-### --strict-task-paths`
+
+## Maintainability & Clean Code
+Agents are expected to leave the codebase cleaner than they found it.
+- **Decomposition**: Proactively refactor monolithic files (e.g., `server.js`, `App.jsx`, `agentService.js`) into modular structures as scope and task definition allow.
+- **Standards Compliance**: All changes must adhere to the detailed technical guidelines in `./coding-standards.md`.
+- **Reviewability**: Keep Pull Requests focused and changes easy to follow. Large refactors should be proposed as separate tasks if they exceed the scope of the current work item.
+- **Documentation**: Update inline documentation (JSDoc) and external markdown docs whenever system behavior or structure changes.
 
 ## Source-of-Truth Precedence
 When instructions conflict, resolve in this order:

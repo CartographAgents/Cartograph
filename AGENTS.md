@@ -31,3 +31,4 @@ Read these in order before coding for the first time:
 1. `agent-pack/00-context/vision.md`
 2. `agent-pack/02-execution/implementation-strategy.md`
 3. `agent-pack/04-task-system/README.md`
+4. `agent-pack/03-agent-ops/*` (all agent operation rules and contracts)
