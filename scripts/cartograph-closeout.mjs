@@ -16,13 +16,48 @@ import {
     getWorkflowPath,
     toAbsolutePath,
 } from './lib/workflow-config.mjs';
-
 function assertDependencies(rootDir) {
     const folders = ['frontend', 'backend'];
     const missing = folders.filter(folder => !fs.existsSync(path.join(rootDir, folder, 'node_modules')));
 
     if (missing.length > 0) {
         throw new Error(`Missing dependencies in: ${missing.join(', ')}. Please run 'npm install' in the respective folder(s) before proceeding.`);
+    }
+}
+
+/**
+ * Runs quality gates (tests and lint) in frontend and backend.
+ * GH Actions should be the safety net, not the first pass.
+ * @param {string} rootDir 
+ */
+function runQualityGates(rootDir) {
+    console.log(`- Running local quality gates (safety first)...`);
+    
+    // Commands to run in child directories
+    const gates = [
+        { name: 'Backend Quality Checks (Tests)', cwd: 'backend', cmd: 'npm', args: ['run', 'test'] },
+        { name: 'Frontend Quality Checks (Lint)', cwd: 'frontend', cmd: 'npm', args: ['run', 'lint'] },
+        { name: 'Frontend Quality Checks (Tests)', cwd: 'frontend', cmd: 'npm', args: ['run', 'test'] }
+    ];
+
+    for (const gate of gates) {
+        process.stdout.write(`  - Running ${gate.name}... `);
+        const result = spawnSync(gate.cmd, gate.args, { 
+            cwd: path.join(rootDir, gate.cwd),
+            stdio: 'pipe',
+            encoding: 'utf8',
+            shell: process.platform === 'win32'
+        });
+        
+        if (result.status !== 0) {
+            console.log('FAILED');
+            // Log a more helpful summary than just the exit code
+            const lines = (result.stdout || result.stderr || '').split('\n');
+            const snippet = lines.length > 20 ? lines.slice(-15).join('\n') : lines.join('\n');
+            console.error(`\nError in ${gate.name}:\n${snippet}`);
+            throw new Error(`${gate.name} failed. Resolve quality issues before closeout.`);
+        }
+        console.log('PASSED');
     }
 }
 
@@ -536,7 +571,33 @@ async function main() {
         }
     }
 
-    // 1. Manifest preflight
+    // 1. Quality Gates (Lint/Test)
+    if (!options.force) {
+        runQualityGates(rootDir);
+    } else {
+        console.log(`- Skipping local quality gates (--force).`);
+    }
+
+    // 2. Mission Pack Integrity (Safety First)
+    if (!options.force) {
+        console.log(`- Running mission pack integrity check...`);
+        const missionCheck = spawnSync('node', ['scripts/validate-mission-pack.mjs', '--path', 'agent-pack'], { stdio: 'inherit', shell: process.platform === 'win32' });
+        if (missionCheck.status !== 0) {
+            console.warn(`[WARNING] Mission pack integrity check failed. Export might be blocked in UI.`);
+            if (!options.nonInteractive) {
+                const rl = createInterface({ input, output });
+                const answer = await rl.question('Continue anyway? (y/n) ');
+                rl.close();
+                if (answer.toLowerCase() !== 'y') {
+                    throw new Error('Mission pack integrity check failed. Resolve issues or address --force.');
+                }
+            }
+        }
+    } else {
+        console.log(`- Skipping mission pack integrity check (--force).`);
+    }
+
+    // 3. Manifest preflight
     if (!options.force) {
         console.log(`- Running manifest path usage check...`);
         const manifestCheck = spawnSync('node', ['scripts/check-manifest-path-usage.mjs'], { stdio: 'inherit' });
