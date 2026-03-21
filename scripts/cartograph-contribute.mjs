@@ -158,8 +158,8 @@ function getEligibility(task, taskMap) {
     errors.push(`status must be todo/backlog (current: ${task.frontmatter.status ?? 'unset'})`);
   }
 
-  if (!['unclaimed', 'expired'].includes(claimStatus)) {
-    errors.push(`claim_status must be unclaimed/expired (current: ${task.frontmatter.claim_status ?? 'unset'})`);
+  if (!['unclaimed', 'expired', 'released'].includes(claimStatus)) {
+    errors.push(`claim_status must be unclaimed/expired/released (current: ${task.frontmatter.claim_status ?? 'unset'})`);
   }
 
   const unresolvedDeps = dependsOn.filter((dep) => !isDependencySatisfied(taskMap, String(dep)));
