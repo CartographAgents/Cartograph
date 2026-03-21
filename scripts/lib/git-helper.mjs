@@ -42,3 +42,10 @@ export function deleteBranch(branch) {
     console.log(`- Deleting branch ${branch}...`);
     runGit(['branch', '-D', branch], { allowFailure: true });
 }
+export function syncBranchFromBase(branch, base) {
+    console.log(`- Updating branch ${branch} with latest from ${base}...`);
+    // Fetch specifically the base branch to ensure we have the latest claim commit
+    runGit(['fetch', 'origin', base]);
+    // Merge origin/base into the current branch to pull in the claim and status moves
+    runGit(['merge', `origin/${base}`, '--no-edit']);
+}

@@ -18,7 +18,7 @@ import {
   joinWorkflowPath,
   toAbsolutePath,
 } from './lib/workflow-config.mjs';
-import { syncMain } from './lib/git-helper.mjs';
+import { syncMain, syncBranchFromBase } from './lib/git-helper.mjs';
 
 function assertDependencies(rootDir) {
   const folders = ['frontend', 'backend'];
@@ -500,14 +500,10 @@ async function main() {
   }
 
   if (!options.dryRun) {
-    // 1. Switch to/Create task branch BEFORE committing claim
-    const branchResult = createOrSwitchBranch(branchName, { dryRun: options.dryRun, resume: options.resume });
-    resumed = branchResult.reused && existingBranch;
-
     if (canClaimNow) {
       console.log(`\n[CLAIM] Initializing global claim on branch ${options.base}...`);
 
-      // Ensure we are synced to the target base (default: main)
+      // 1. Ensure we are synced to the target base (default: main)
       if (options.base === 'main') {
         syncMain(); 
       } else {
@@ -554,10 +550,15 @@ async function main() {
         console.log(`- Pushing claim to origin/${options.base}...`);
         runGit(['push', 'origin', options.base]);
       }
+    }
 
-      // Finally, return to the task branch
-      console.log(`- Returning to task branch ${branchName}...`);
-      runGit(['switch', branchName]);
+    // 4. Switch to/Create task branch AFTER committing claim
+    const branchResult = createOrSwitchBranch(branchName, { dryRun: options.dryRun, resume: options.resume });
+    resumed = branchResult.reused && existingBranch;
+
+    // 5. If resuming or branch existed, pull the claim from base
+    if (resumed || (branchResult.reused && canClaimNow)) {
+      syncBranchFromBase(branchName, options.base);
     }
   }
 

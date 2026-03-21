@@ -393,11 +393,37 @@ function extractProgressLogEvidence(rootDir, config, taskId) {
     return match[1].trim();
 }
 
+function extractBlockers(rootDir, config, taskId) {
+    const stateRootRel = getWorkflowPath(config, 'state_root');
+    const path_ = toAbsolutePath(rootDir, path.join(stateRootRel, 'blockers.md'));
+    if (!fs.existsSync(path_)) return 'None.';
+    
+    const content = fs.readFileSync(path_, 'utf8');
+    const lines = content.split('\n');
+    // Simple line-based matching for taskId as a fallback for unstructured logs
+    const matching = lines.filter(l => l.includes(`\`${taskId}\``) || l.includes(taskId));
+    return matching.length > 0 ? matching.map(l => l.trim()).join('\n') : 'None.';
+}
+
+function extractAssumptions(rootDir, config, taskId) {
+    const agentPackRoot = getWorkflowPath(config, 'agent_pack_root');
+    // Assumptions often live in 00-context
+    const path_ = toAbsolutePath(rootDir, path.join(agentPackRoot, '00-context', 'assumptions.md'));
+    if (!fs.existsSync(path_)) return 'None.';
+    
+    const content = fs.readFileSync(path_, 'utf8');
+    const lines = content.split('\n');
+    const matching = lines.filter(l => l.includes(`\`${taskId}\``) || l.includes(taskId));
+    return matching.length > 0 ? matching.map(l => l.trim()).join('\n') : 'None.';
+}
+
 async function createPullRequest(taskId, branch, taskPath, rootDir, config, options) {
     const { frontmatter, body } = readMarkdownWithFrontmatter(taskPath);
     const acceptance = (frontmatter.acceptance_criteria || []).map(ac => `- [x] ${ac}`).join('\n');
     const goal = extractSection(body, 'Task Goal') || 'See task file.';
     const evidence = extractProgressLogEvidence(rootDir, config, taskId) || 'Add evidence details here.';
+    const assumptions = extractAssumptions(rootDir, config, taskId);
+    const blockers = extractBlockers(rootDir, config, taskId);
 
     const prBody = `## Primary Tasks
 ### Task ID: ${taskId}
@@ -422,10 +448,10 @@ ${evidence}
 - node scripts/validate-task-pr.mjs --self-check --task-id ${taskId} passed.
 
 ### Assumptions Made
-- None.
+${assumptions}
 
 ### Blockers Encountered
-- None.
+${blockers}
 
 ### Out-of-Scope Changes
 - None.
