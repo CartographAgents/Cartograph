@@ -2,21 +2,22 @@
 id: task-015
 title: Add frontend automated tests for export and safe rendering paths
 type: task
-status: todo
+status: in_progress
 priority: P1
-owner: unassigned
-claim_owner: unassigned
-claim_status: unclaimed
-claim_expires_at: null
-sla_due_at: 2026-04-28T23:59:00Z
+owner: Eric Lott
+claim_owner: Eric Lott
+claim_status: claimed
+claim_expires_at: "2026-03-22T02:07:16.628Z"
+sla_due_at: "2026-04-28T23:59:00Z"
 depends_on:
   - task-007
   - task-013
 acceptance_criteria:
   - Automated tests run locally and cover safe rendering plus export structure behavior.
   - Tests fail when unsafe rendering or export regression is reintroduced.
-last_updated: 2026-03-19
+last_updated: 2026-03-21
 ---
+
 
 # Task: Add frontend automated tests for export and safe rendering paths
 
