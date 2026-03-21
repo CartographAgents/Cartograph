@@ -2,7 +2,7 @@
 id: task-027
 title: Migrate LLM provider logic to backend proxy
 type: task
-status: in_progress
+status: pull_requested
 priority: P1
 owner: Eric Lott
 claim_owner: Eric Lott

@@ -14,12 +14,11 @@ describe('agentService', () => {
     });
 
     describe('generatePillarsFromIdea', () => {
-        it('should return pillars from a successful OpenAI response', async () => {
+        it('should return pillars from a successful proxy response', async () => {
+            const rawOutput = JSON.stringify([{ id: 'p1', title: 'P1', description: 'D1', subcategories: [], decisions: [] }]);
             const mockResponse = {
                 ok: true,
-                json: async () => ({
-                    choices: [{ message: { content: JSON.stringify([{ id: 'p1', title: 'P1', description: 'D1', subcategories: [], decisions: [] }]) } }]
-                })
+                json: async () => ({ completion: rawOutput })
             };
             fetch.mockResolvedValue(mockResponse);
 
@@ -31,44 +30,42 @@ describe('agentService', () => {
             expect(result).toHaveLength(1);
             expect(result[0].title).toBe('P1');
             expect(fetch).toHaveBeenCalledWith(
-                expect.stringContaining('openai.com'),
+                '/api/agent/complete',
                 expect.objectContaining({
                     method: 'POST',
                     headers: expect.objectContaining({
-                        'Authorization': 'Bearer test-key'
-                    })
+                        'Content-Type': 'application/json'
+                    }),
+                    body: expect.stringContaining('"clientKeys":{"openai":"test-key"}')
                 })
             );
         });
 
-        it('should throw an error if the provider returns invalid JSON', async () => {
+        it('should throw an error if the proxy returns invalid JSON content', async () => {
             const mockResponse = {
                 ok: true,
-                json: async () => ({
-                    choices: [{ message: { content: 'invalid json' } }]
-                })
+                json: async () => ({ completion: 'invalid json' })
             };
             fetch.mockResolvedValue(mockResponse);
 
             await expect(generatePillarsFromIdea('my idea', { 
                 provider: 'openai', 
                 keys: { openai: 'test-key' } 
-            })).rejects.toThrow(/provider did not return valid JSON/);
+            })).rejects.toThrow(/Pillar generation output validation failed/);
         });
     });
 
     describe('processChatTurn', () => {
-        it('should process a chat turn and return validated output', async () => {
+        it('should process a chat turn and return validated output through proxy', async () => {
+            const rawOutput = JSON.stringify({
+                reply: 'Hello',
+                updatedDecisions: [],
+                newCategories: [],
+                conflicts: []
+            });
             const mockResponse = {
                 ok: true,
-                json: async () => ({
-                    choices: [{ message: { content: JSON.stringify({
-                        reply: 'Hello',
-                        updatedDecisions: [],
-                        newCategories: [],
-                        conflicts: []
-                    }) } }]
-                })
+                json: async () => ({ completion: rawOutput })
             };
             fetch.mockResolvedValue(mockResponse);
 
@@ -79,6 +76,7 @@ describe('agentService', () => {
             );
 
             expect(result.reply).toBe('Hello');
+            expect(fetch).toHaveBeenCalledWith('/api/agent/complete', expect.any(Object));
         });
     });
 });
