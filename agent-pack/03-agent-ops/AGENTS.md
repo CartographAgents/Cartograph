@@ -140,8 +140,8 @@ Execution rules:
 9. Release claim (`claim_status: released`, `claim_expires_at: null`) when task is `completed`.
 
 ### Task PR Boundary
-- A single PR may address one or more primary task IDs.
-- All primary task IDs in the PR must be included in the branch name and PR title.
+- A single PR must address exactly one primary task ID.
+- The primary task ID must be included in the branch name and PR title.
 - Do not modify other backlog item files (`task-*`, `bug-*`, etc.) outside the selected primary item(s).
 - Do not update claim/status metadata or move status folders for any non-primary backlog item in the same PR.
 - If state logs are updated (`progress`, `blockers`, `decisions`), entries must reference at least one of the primary task IDs.

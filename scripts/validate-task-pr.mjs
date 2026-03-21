@@ -87,7 +87,7 @@ function getCurrentBranch() {
   return runGit(['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
 }
 
-function parsePrimaryIdsFromBranch(branch) {
+function parsePrimaryIdFromBranch(branch) {
   const cleaned = String(branch || '').trim();
   const idMatches = cleaned.match(/(task|bug|spike|feature)-\d+/g) || [];
   const unique = [...new Set(idMatches)];
@@ -96,9 +96,12 @@ function parsePrimaryIdsFromBranch(branch) {
     return { error: `Branch "${cleaned}" does not contain any valid item IDs (task|bug|spike|feature-###).` };
   }
 
-  const primaryType = unique[0].split('-')[0];
+  if (unique.length > 1) {
+    return { error: `One-Task-per-PR Violation: Branch "${cleaned}" contains multiple task IDs: ${unique.join(', ')}.` };
+  }
 
-  return { ids: unique, type: primaryType };
+  const primaryType = unique[0].split('-')[0];
+  return { id: unique[0], type: primaryType };
 }
 
 function parsePrBodyFields(bodyText) {
@@ -504,17 +507,21 @@ function main() {
   const event = loadEventPayload();
 
   const branch = options.branch || process.env.PR_BRANCH || process.env.GITHUB_HEAD_REF || getCurrentBranch();
-  const primaryFromBranch = parsePrimaryIdsFromBranch(branch);
+  const primaryFromBranch = parsePrimaryIdFromBranch(branch);
 
-  if (primaryFromBranch.error && !options.taskId) {
-    addWarning(warnings, primaryFromBranch.error);
+  if (primaryFromBranch.error) {
+    if (options.taskId && !primaryFromBranch.id) {
+        // If taskId is provided via CLI, we can skip the branch error unless it's a conflict
+    } else {
+        addError(errors, primaryFromBranch.error);
+    }
   }
 
-  const primaryIds = options.taskId ? options.taskId.split(',').map(id => id.trim()) : (primaryFromBranch.ids || []);
-  const primaryType = primaryFromBranch.type || (primaryIds.length > 0 ? primaryIds[0].split('-')[0] : null);
+  const primaryId = options.taskId || primaryFromBranch.id;
+  const primaryType = primaryId ? primaryId.split('-')[0] : null;
 
-  if (primaryIds.length === 0) {
-    addError(errors, 'Unable to determine primary item ID(s) from branch or --task-id.');
+  if (!primaryId) {
+    addError(errors, 'Unable to determine primary item ID from branch or --task-id.');
   }
 
   const changedFiles = loadChangedFiles(options);
@@ -531,10 +538,9 @@ function main() {
   if (true) {
     if (!title.trim()) {
       reportIssue(errors, warnings, options, 'PR title is required for full validation.');
-    } else {
-        const foundIds = primaryIds.filter(id => title.includes(id));
-        if (foundIds.length === 0) {
-            reportIssue(errors, warnings, options, `PR title must include at least one primary item ID: ${primaryIds.join(', ')}.`);
+    } else if (primaryId) {
+        if (!title.includes(primaryId)) {
+            reportIssue(errors, warnings, options, `PR title must include the primary item ID: ${primaryId}.`);
         }
     }
 
@@ -555,28 +561,29 @@ function main() {
     }
 
     const bodyTaskIds = extractPrimaryIdsFromField(fields['Task ID']);
-    const missingIds = primaryIds.filter(id => !bodyTaskIds.includes(id));
-    if (missingIds.length > 0) {
-      reportIssue(errors, warnings, options, `Task ID field in PR body is missing IDs from transition: ${missingIds.join(', ')}`);
+    if (primaryId && !bodyTaskIds.includes(primaryId)) {
+      reportIssue(errors, warnings, options, `Task ID field in PR body is missing the primary ID: ${primaryId}`);
+    }
+    if (bodyTaskIds.length > 1) {
+      reportIssue(errors, warnings, options, `PR body must only list one primary Task ID (found: ${bodyTaskIds.join(', ')}).`);
     }
   }
 
-  const primaryPaths = [];
-  for (const tid of primaryIds) {
-      const tType = tid.split('-')[0];
-      const candidates = getPrimaryPathCandidates(changedFiles, tid, tType, taskSystemRoot);
-      const resolved = selectPrimaryPathCandidate(candidates);
-      if (resolved.error) {
-          addError(errors, `${tid}: ${resolved.error}`);
-      }
-      if (resolved.path) {
-          primaryPaths.push(resolved.path);
-          if (!changedFiles.includes(resolved.path)) {
-              addError(errors, `Primary item file for ${tid} must be changed in this PR: ${resolved.path}`);
-          }
-      } else if (tid.match(/(task|bug|spike|feature)-\d+/)) {
-          addError(errors, `Changed files must include the primary item file for ${tid}.`);
-      }
+  let primaryPath = null;
+  if (primaryId) {
+    const candidates = getPrimaryPathCandidates(changedFiles, primaryId, primaryType, taskSystemRoot);
+    const resolved = selectPrimaryPathCandidate(candidates);
+    if (resolved.error) {
+        addError(errors, `${primaryId}: ${resolved.error}`);
+    }
+    if (resolved.path) {
+        primaryPath = resolved.path;
+        if (!changedFiles.includes(resolved.path)) {
+            addError(errors, `Primary item file for ${primaryId} must be changed in this PR: ${resolved.path}`);
+        }
+    } else if (primaryId.match(/(task|bug|spike|feature)-\d+/)) {
+        addError(errors, `Changed files must include the primary item file for ${primaryId}.`);
+    }
   }
 
   const changedBacklogItems = changedFiles
@@ -584,16 +591,10 @@ function main() {
     .filter((item) => item.id);
   
   const invalidBacklogChanges = changedBacklogItems
-    .filter((item) => !primaryIds.includes(item.id))
+    .filter((item) => item.id !== primaryId)
     .map((item) => item.file);
   if (invalidBacklogChanges.length > 0) {
-    addError(errors, `Strict mode violation: other backlog item files changed: ${[...new Set(invalidBacklogChanges)].join(', ')}`);
-  }
-
-  const multiItemIds = [...new Set(changedBacklogItems.map((item) => item.id).filter(Boolean))]
-    .filter((id) => !primaryIds.includes(id));
-  if (multiItemIds.length > 0) {
-    addError(errors, `PR spans multiple primary items: ${multiItemIds.join(', ')}`);
+    addError(errors, `One-Task-per-PR violation: multiple backlog items changed: ${[...new Set(invalidBacklogChanges.map(f => getBacklogItemFileId(f, taskSystemRoot)))].join(', ')}`);
   }
 
   const logFiles = [
@@ -609,28 +610,25 @@ function main() {
     const addedText = addedLines.join('\n');
     const relatedItemsLineIndexes = getRelatedItemsLineIndexes(addedLines);
 
-    const missingIdsInLog = primaryIds.filter(id => !addedText.includes(id));
-    if (missingIdsInLog.length > 0) {
-      addError(errors, `${logFile} was updated but added lines do not reference ${missingIdsInLog.join(', ')}.`);
+    if (primaryId && !addedText.includes(primaryId)) {
+      addError(errors, `${logFile} was updated but added lines do not reference ${primaryId}.`);
     }
 
     const outsideRelatedIds = [];
     for (const [index, line] of addedLines.entries()) {
-      const ids = extractIdsFromText(line).filter((id) => !primaryIds.includes(id));
+      const ids = extractIdsFromText(line).filter((id) => id !== primaryId);
       if (ids.length === 0) continue;
       if (relatedItemsLineIndexes.has(index)) continue;
       outsideRelatedIds.push(...ids);
     }
 
     if (outsideRelatedIds.length > 0) {
-      reportIssue(errors, warnings, options, `${logFile} added lines reference other primary IDs outside related_items: ${[...new Set(outsideRelatedIds)].join(', ')}`);
+      reportIssue(errors, warnings, options, `${logFile} added lines reference other item IDs outside related_items: ${[...new Set(outsideRelatedIds)].join(', ')}`);
     }
   }
 
-  for (const primaryPath of primaryPaths) {
-    const tid = getBacklogItemFileId(primaryPath, taskSystemRoot);
-    if (!tid) continue;
-
+  if (primaryPath) {
+    const tid = primaryId;
     const { oldFm, newFm } = loadFrontmatterForTransition(primaryPath, options);
 
     if (newFm) {
@@ -698,7 +696,7 @@ function main() {
     process.exit(1);
   }
 
-  console.log(`Task PR validation passed for ${primaryIds.join(', ')}.`);
+  console.log(`Task PR validation passed for ${primaryId}.`);
 }
 
 try {

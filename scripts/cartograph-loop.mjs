@@ -29,11 +29,14 @@ async function sleep(ms) {
 }
 
 function runCommand(command, args, options = {}) {
-    console.log(`\n> ${command} ${args.join(' ')}`);
+    console.log(`[LOOP] Running: ${command} ${args.join(' ')}`);
     const status = spawnSync(command, args, { stdio: 'inherit', ...options });
     if (status.status !== 0) {
-        throw new Error(`Command ${command} failed with exit code ${status.status}`);
+        console.error(`[ERROR] Command failed with exit code ${status.status}`);
+        if (options.allowFailure) return status;
+        throw new Error(`Command ${command} failed`);
     }
+    return status;
 }
 
 function getAvailableTaskCount(rootDir) {
@@ -52,6 +55,13 @@ async function loop() {
     let loops = 0;
 
     console.log('🚀 Starting Cartograph Recursive Loop...');
+
+    // Pre-flight check: gh auth status
+    const authCheck = spawnSync('gh', ['auth', 'status'], { stdio: 'pipe' });
+    if (authCheck.status !== 0) {
+        console.warn('\n⚠️ [WARNING] GitHub CLI (gh) is not authenticated. PR operations will fail.');
+        console.warn('Please run \'gh auth login\' to authenticate.\n');
+    }
 
     while (options.maxLoops === -1 || loops < options.maxLoops) {
         loops++;
@@ -76,39 +86,54 @@ async function loop() {
                 continue;
             }
 
-            console.log(`- PR is currently ${pr.state}. URL: ${pr.url}`);
+            console.log(`[LOOP] PR is currently ${pr.state}. URL: ${pr.url}`);
             if (options.autoMerge && pr.state === 'OPEN') {
                 const checkStatus = pr.statusCheckRollup?.state;
                 if (checkStatus === 'SUCCESS') {
-                    console.log('- CI passed! Attempting auto-merge...');
+                    console.log('[LOOP] CI passed! Attempting auto-merge...');
                     runCommand('gh', ['pr', 'merge', '--auto', '--delete-branch', '--squash']);
+                } else if (checkStatus === 'FAILURE') {
+                    console.log('⚠️ [ALERT] CI failed for current PR. Manual intervention likely required.');
+                    break;
                 } else {
-                    console.log(`- Waiting for CI... (Current status: ${checkStatus || 'PENDING'})`);
+                    console.log(`[LOOP] Waiting for CI... (Current status: ${checkStatus || 'PENDING'})`);
                 }
             }
             
-            console.log(`- Sleeping for ${SLEEP_MS / 1000}s...`);
+            console.log(`[LOOP] Sleeping for ${SLEEP_MS / 1000}s...`);
             await sleep(SLEEP_MS);
             continue;
         }
 
         // We are on main. Decide what to do next.
         const availableTasks = getAvailableTaskCount(rootDir);
-        console.log(`- On main branch. Available tasks in todo/: ${availableTasks}`);
+        console.log(`[LOOP] On main branch. Available tasks in todo/: ${availableTasks}`);
 
         if (availableTasks === 0) {
-            console.log('- Backlog is empty. Switching to TASK MODE to create new work...');
-            // In a real scenario, this would trigger a sub-agent to reflect and create tasks.
-            // For now, we'll prompt the user or just stop.
-            console.log('⚠️ [STOP] No tasks available. Please provide a new objective or create tasks.');
-            break;
+            console.log('[TASK] Backlog is empty. Running Gap Analysis...');
+            try {
+                runCommand('node', ['scripts/cartograph-tasker.mjs']);
+                console.log('\n[TASK] Switching to TASK MODE to create new work items.');
+            } catch (err) {
+                console.error('[ERROR] Failed to run tasker:', err.message);
+            }
+            // In a recursive loop, we might want to stop here so the agent can reflect/create tasks.
+            break; 
         }
 
-        console.log('- Picking a new task in WORK MODE...');
-        runCommand('node', ['scripts/cartograph-contribute.mjs', '--auto']);
-        
-        // After pick, we'll be on a new branch. The next loop iteration will pick it up.
-        console.log('- New task branch created. Continuing execution...');
+        console.log('[WORK] Picking a new task from the todo/ bucket...');
+        try {
+            const contributeArgs = ['scripts/cartograph-contribute.mjs', '--auto'];
+            if (options.dryRun) contributeArgs.push('--dry-run');
+            // If the loop is in dry-run/allow-dirty, assume we want sub-commands to be too
+            contributeArgs.push('--allow-dirty'); 
+            
+            runCommand('node', contributeArgs);
+            console.log('[WORK] New task branch created. Continuing execution...');
+        } catch (err) {
+            console.error('[ERROR] Failed to pick new task:', err.message);
+            break;
+        }
     }
 
     console.log('\n🏁 Loop execution complete.');
