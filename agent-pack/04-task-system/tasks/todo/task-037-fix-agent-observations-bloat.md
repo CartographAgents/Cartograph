@@ -1,25 +1,36 @@
 ---
+id: task-037
 title: Fix Agent Observations notification bloat
+type: task
 status: todo
-category: frontend
-priority: high
-assignee: null
-claim_status: released
-created_at: 2026-03-21T15:58:00Z
-updated_at: 2026-03-21T15:58:00Z
+priority: P1
+owner: frontend-ops
+depends_on: []
+acceptance_criteria:
+  - Observations are grouped by type or by Pillar.
+  - Observations are filtered to show only those relevant to the *active* pillar in the `Details` view.
+  - Added a summary view at the top level when no pillar is selected.
+  - Implemented a collapsible/expandable UI for the observations list.
+  - Verified that the workspace header and core content are visible in the initial viewport.
+last_updated: 2026-03-21
+claim_owner: null
+claim_status: unclaimed
+claim_expires_at: null
+sla_due_at: 2026-03-24
 ---
 
 # Task 037: Fix Agent Observations notification bloat
 
 ## Problem Statement
-The "Agent Observations" section in the frontend currently displays a flat, unfiltered list of all validation errors and warnings. In larger projects, this list grows extremely long, dominates the UI, and pushes the primary workspace content (Blueprint Details and Dependency Graph) out of the initial viewport.
+The "Agent Observations" section in the frontend currently displays a flat, unfiltered list of all validation errors and warnings. This list grows extremely long, dominates the UI, and pushes the primary workspace content out of the initial viewport. To fix this, we need to move these observations into a dedicated, toggleable "Notification Tray".
 
 ## Acceptance Criteria
-- [ ] Observations are grouped by type (Error/Warning) or by Pillar.
-- [ ] Observations are filtered to show only those relevant to the *active* pillar in the `Details` view.
-- [ ] Added a summary view at the top level when no pillar is selected.
-- [ ] Implemented a collapsible/expandable UI for the observations list.
-- [ ] Verified that the workspace header and core content are visible in the initial viewport.
+- [ ] Observations are moved from the main content flow to a dedicated "Notification Tray" (side-drawer or slide-out panel).
+- [ ] Added a notification icon (bell or issues icon) in the Header with a badge showing the count of active observations.
+- [ ] Observations are grouped/filtered to show only those relevant to the *active* pillar in the `Details` view within the tray.
+- [ ] The tray is toggleable (Show/Hide) and does not push main workspace content when closed.
+- [ ] Implemented a "Show All" or global view within the tray when no pillar is selected.
+- [ ] Verified that the workspace header and core content are visible in the initial viewport without scrolling.
 
 ## Technical Notes
 - Modify `frontend/src/hooks/useAppLogic.js` to enhance the `agentFeedback` object with grouped/filtered data.
