@@ -2,22 +2,23 @@
 id: task-026
 title: Refactor persistence to atomic upsert strategy
 type: task
-status: todo
+status: in_progress
 priority: P0
-owner: architecture
-claim_owner: null
-claim_status: released
-claim_expires_at: null
+owner: Eric Lott
+claim_owner: Eric Lott
+claim_status: claimed
+claim_expires_at: "2026-03-22T18:03:46.199Z"
 sla_due_at: "2026-04-10T23:59:00Z"
 depends_on:
   - task-001
   - task-002
 acceptance_criteria:
-  - Saving a project no longer involves a `destroy` call for existing Pillars or Decisions.
+  - "Saving a project no longer involves a `destroy` call for existing Pillars or Decisions."
   - New Pillars/Decisions are created; existing ones are updated via ID match.
   - Database transactions ensure atomicity across the entire tree.
-last_updated: 2026-03-20
+last_updated: 2026-03-21
 ---
+
 
 # Task: Refactor persistence to atomic upsert strategy
 
