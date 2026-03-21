@@ -2,21 +2,21 @@
 id: task-031
 title: Implement Scaffolding Generation in exportService.js
 type: task
-status: todo
+status: in_progress
 priority: P1
-owner: product-export
+owner: Eric Lott
+claim_owner: Eric Lott
+claim_status: claimed
+claim_expires_at: "2026-03-22T00:00:00.000Z"
+sla_due_at: 2026-03-22
 depends_on:
   - feat-008
 acceptance_criteria:
-  - `exportService.js` now iterates through all Decisions to create individual tasks in `04-tasks/tasks`.
-  - Task content includes `Acceptance Criteria` and `Inputs` sections by default.
+  - "`exportService.js` now iterates through all Decisions to create individual tasks in `04-tasks/tasks`."
+  - "Task content includes `Acceptance Criteria` and `Inputs` sections by default."
   - Tasks are linked to their source Feature and parent Workstream via frontmatter.
   - New unit tests prove that an export with 5 decisions generates at least 5 discrete tasks.
 last_updated: 2026-03-21
-claim_owner: null
-claim_status: unclaimed
-claim_expires_at: null
-sla_due_at: 2026-03-22
 ---
 
 # Task: Implement Scaffolding Generation in exportService.js
