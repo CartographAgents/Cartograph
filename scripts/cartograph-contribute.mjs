@@ -19,6 +19,15 @@ import {
   toAbsolutePath,
 } from './lib/workflow-config.mjs';
 
+function assertDependencies(rootDir) {
+  const folders = ['frontend', 'backend'];
+  const missing = folders.filter(folder => !fs.existsSync(path.join(rootDir, folder, 'node_modules')));
+
+  if (missing.length > 0) {
+    throw new Error(`Missing dependencies in: ${missing.join(', ')}. Please run 'npm install' in the respective folder(s) before proceeding.`);
+  }
+}
+
 const PRIORITY_ORDER = {
   P0: 0,
   P1: 1,
@@ -107,6 +116,7 @@ function slugify(text, maxLength = 48) {
 function todayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
+
 
 function loadTasks(rootDir, tasksRootRel) {
   const tasksDir = toAbsolutePath(rootDir, tasksRootRel);
@@ -374,6 +384,7 @@ async function main() {
   const rootDir = process.cwd();
   const config = loadWorkflowConfig(rootDir);
   assertRepoStructure(rootDir, config);
+  assertDependencies(rootDir);
   ensureCleanWorktree(options.allowDirty || options.dryRun);
 
   // 0. Pre-flight check: gh auth status (Skip if --skip-push or --dry-run)
