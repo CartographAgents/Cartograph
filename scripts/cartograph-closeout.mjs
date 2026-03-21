@@ -630,6 +630,7 @@ async function main() {
 
     const agentPackRel = getWorkflowPath(config, 'agent_pack_root');
     console.log(`\n> [REMINDER] If you encountered any new mistake patterns during implementation, log them now in '${agentPackRel.replace(/\\/g, '/')}/03-agent-ops/mistakes-framework.md' to keep our guardrails sharp.`);
+    console.log(`> [FEEDBACK] If you have suggestions for improving the orchestration process or encountered friction, leave a note in '${agentPackRel.replace(/\\/g, '/')}/03-agent-ops/feedback.md'.`);
 }
 
 main().catch((error) => {
