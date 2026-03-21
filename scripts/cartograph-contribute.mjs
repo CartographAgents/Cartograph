@@ -279,7 +279,52 @@ function buildContextBundle(task, owner, branchName, config) {
     : '- Add acceptance criteria in task file.';
   const fastVerify = getFastVerifyCommands(fm.type, fm.id).map((command) => `- ${command}`).join('\n');
 
-  return `# Cartograph Contribution Context: ${fm.id}\n\n## Primary Task\n- Task ID: ${fm.id}\n- Task File: ${task.relativePath}\n- Task Title: ${fm.title}\n- Branch: ${branchName}\n- Owner: ${owner}\n\n## Task Goal\n${extractSection(task.body, 'Task Goal') || 'See task file.'}\n\n## Dependencies\n${dependsOn}\n\n## Acceptance Criteria\n${acceptance}\n\n## Source-of-Truth Read Order\n1. AGENTS.md\n2. ${readPath1}\n3. ${readPath2}\n4. ${readPath3}\n5. ${task.relativePath}\n\n## PR Contract Checklist\n- [ ] PR title includes ${fm.id}\n- [ ] PR body includes required task linkage fields\n- [ ] Changed backlog files are limited to this primary task file\n- [ ] Progress/decision/blocker updates (if any) reference ${fm.id}\n\n## Local Validation\n- Run: node scripts/validate-task-pr.mjs --self-check --task-id ${fm.id}\n\n## Fast Verify\n${fastVerify}\n\n## Ready Prompt\nRead AGENTS.md and ${readPath1}. Implement only ${fm.id} (${fm.title}). Keep scope to this primary task plus required state logs. Do not modify other backlog items. Produce evidence aligned to acceptance criteria and keep PR title/body linked to ${fm.id}.\n`;
+  return `# Cartograph Contribution Context: ${fm.id}\n
+> [!IMPORTANT]
+> **Workflow Identity & Safety Gate**:
+> - You MUST be on the branch: \`${branchName}\`.
+> - If you are on \`main\`, STOP. Do not proceed.
+> - Verify your branch with \`git branch\` before any implementation.
+
+## Primary Task
+- Task ID: ${fm.id}
+- Task File: ${task.relativePath}
+- Task Title: ${fm.title}
+- Branch: ${branchName}
+- Owner: ${owner}
+
+## Task Goal
+${extractSection(task.body, 'Task Goal') || 'See task file.'}
+
+## Dependencies
+${dependsOn}
+
+## Acceptance Criteria
+${acceptance}
+
+## Source-of-Truth Read Order
+1. AGENTS.md
+2. ${readPath1}
+3. ${readPath2}
+4. ${readPath3}
+5. ${task.relativePath}
+
+## PR Contract Checklist
+- [ ] **Branch Check**: I am NOT on \`main\`. My branch is \`${branchName}\`.
+- [ ] PR title includes ${fm.id}
+- [ ] PR body includes required task linkage fields
+- [ ] Changed backlog files are limited to this primary task file
+- [ ] Progress/decision/blocker updates (if any) reference ${fm.id}
+
+## Local Validation
+- Run: node scripts/validate-task-pr.mjs --self-check --task-id ${fm.id}
+
+## Fast Verify
+${fastVerify}
+
+## Ready Prompt
+**STOP**: Verify you are on branch \`${branchName}\`. Read AGENTS.md and ${readPath1}. Implement only ${fm.id} (${fm.title}). Keep scope to this primary task plus required state logs. Do not modify other backlog items. Produce evidence aligned to acceptance criteria and keep PR title/body linked to ${fm.id}.
+`;
 }
 
 function extractSection(body, headingName) {
@@ -455,6 +500,10 @@ async function main() {
   }
 
   if (!options.dryRun) {
+    // 1. Switch to/Create task branch BEFORE committing claim
+    const branchResult = createOrSwitchBranch(branchName, { dryRun: options.dryRun, resume: options.resume });
+    resumed = branchResult.reused && existingBranch;
+
     if (canClaimNow) {
       console.log(`\n[CLAIM] Initializing global claim on branch ${options.base}...`);
 
@@ -505,11 +554,11 @@ async function main() {
         console.log(`- Pushing claim to origin/${options.base}...`);
         runGit(['push', 'origin', options.base]);
       }
-    }
 
-    // 4. Switch to/Create task branch
-    const branchResult = createOrSwitchBranch(branchName, { dryRun: options.dryRun, resume: options.resume });
-    resumed = branchResult.reused && existingBranch;
+      // Finally, return to the task branch
+      console.log(`- Returning to task branch ${branchName}...`);
+      runGit(['switch', branchName]);
+    }
   }
 
   const bundleDir = path.join(rootDir, '.cartograph', 'context');

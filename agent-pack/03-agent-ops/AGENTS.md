@@ -81,11 +81,17 @@ Preferred setup command:
 Bootstrap responsibilities:
 - validates required docs and task contracts
 - selects one eligible `task-*` item
-- creates task-linked branch name (`task/task-###-slug`)
 - claims selected task
 - generates context bundle for manual or AI-assisted execution
 
-### Step 5: Use Cartograph Closeout
+### Step 5: Branch & Safety Check (MANDATORY)
+Before writing any code or implementation plans, verify your branch:
+- Run `git branch` to ensure you are NOT on `main`.
+- If you are on `main`, stop immediately.
+- If the bootstrap command (`node scripts/cartograph-contribute.mjs`) returned a non-zero exit code, do NOT proceed. Investigate the failure and resolve the branch creation issue.
+- **NEVER** push work directly to `main`.
+
+### Step 6: Use Cartograph Closeout
 Before opening a PR, run:
 - `node scripts/cartograph-closeout.mjs`
 - Non-interactive validation and status-move:

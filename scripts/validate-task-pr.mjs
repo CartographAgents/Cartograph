@@ -524,6 +524,10 @@ function main() {
     addError(errors, 'Unable to determine primary item ID from branch or --task-id.');
   }
 
+  if (branch === 'main' || branch === 'master') {
+    addError(errors, 'Validation is NOT allowed on the main branch. You MUST be on a task-specific branch (e.g., task/task-###-*).');
+  }
+
   const changedFiles = loadChangedFiles(options);
 
   if (changedFiles.length === 0) {

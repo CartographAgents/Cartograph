@@ -486,6 +486,9 @@ async function main() {
     const tasksRootRel = getWorkflowPath(config, 'tasks_root');
 
     const branch = getCurrentBranch();
+    if (branch === 'main' || branch === 'master') {
+        throw new Error('Closeout is NOT allowed on the main branch. You must be on a task-specific branch (e.g., task/task-###-*). If you accidentally worked on main, stash your changes, switch to a new branch, and apply them there.');
+    }
     const taskId = options.taskId || extractTaskIdFromBranch(branch);
 
     if (!taskId) {
