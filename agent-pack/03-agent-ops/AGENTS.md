@@ -133,7 +133,7 @@ Execution rules:
 2. Set claim metadata (`claim_owner`, `claim_status: claimed`, `claim_expires_at`) before coding.
 3. Implement only what is required by task acceptance criteria.
 4. Apply any relevant safeguards documented in `./mistakes-framework.md`.
-5. Validate per quality docs.
+5. Validate per quality docs and add new tests to the test set if required for the current task.
 6. Record evidence in `../05-state/progress-log.md`.
 7. Use `node scripts/cartograph-closeout.mjs` to prepare for completion.
 8. Move task to `pull_requested` when PR is submitted, then `completed` after PR approval.
@@ -227,6 +227,7 @@ A task can move to `completed` only when:
 3. Security and reliability requirements for scope are met.
 4. Evidence is recorded in `../05-state/progress-log.md`.
 5. No unresolved blocker remains linked to the task.
+6. New tests are added to the test set if needed for the specific task.
 
 ### Continuous Integration
 The following checks are automated in GitHub Actions on all PRs to `main`:
