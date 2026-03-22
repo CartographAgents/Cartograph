@@ -8,7 +8,7 @@ const getProjectTree = async (projectId) => {
         where: { ProjectId: project.id },
         include: [{
             model: Decision,
-            include: [{ model: Decision, as: 'linkedTo', through: 'DecisionRelationship' }]
+            include: [{ model: Decision, as: 'linkedTo', through: DecisionRelationship }]
         }]
     });
 

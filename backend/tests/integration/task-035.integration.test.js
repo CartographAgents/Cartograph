@@ -7,7 +7,7 @@ const { app, sequelize } = require('../../server');
 const { DecisionRelationship } = require('../../models');
 
 describe('Task-035: Decision Relationships Integration', () => {
-    beforeAll(async () => {
+    beforeEach(async () => {
         await sequelize.sync({ force: true });
     });
 
@@ -79,9 +79,8 @@ describe('Task-035: Decision Relationships Integration', () => {
         expect(d1.links[0].id).toBe('d2');
         expect(d1.links[0].type).toBe('depends_on');
         expect(d1.links[0].strength).toBe(0.8);
-    });
 
-    test('should retrieve decision graph neighbors', async () => {
+        // Verify graph neighbors API
         const graphRes = await request(app).get('/api/decisions/d1/graph');
         expect(graphRes.status).toBe(200);
         expect(graphRes.body.links).toContainEqual(expect.objectContaining({
