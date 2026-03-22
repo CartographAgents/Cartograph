@@ -13,6 +13,7 @@ acceptance_criteria:
   - Edges visually styled by relationship type (solid, dashed, red).
   - Synchronize "Active Decision" between the graph selection and the workspace detail pane.
 last_updated: 2026-03-21
+claim_status: unclaimed
 ---
 
 # Task: Implement Decision Graph Node Semantics
