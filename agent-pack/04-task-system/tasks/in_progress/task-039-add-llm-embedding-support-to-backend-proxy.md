@@ -2,12 +2,12 @@
 id: task-039
 title: Add LLM Embedding Support to Backend Proxy
 type: task
-status: todo
+status: in_progress
 priority: P1
-owner: backend-specialist
-claim_owner: null
-claim_status: unclaimed
-claim_expires_at: null
+owner: Eric Lott
+claim_owner: Eric Lott
+claim_status: claimed
+claim_expires_at: "2026-03-24T19:15:52.020Z"
 sla_due_at: 2026-03-26
 depends_on:
   - task-027
