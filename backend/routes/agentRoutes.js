@@ -24,4 +24,26 @@ router.post('/agent/complete', async (req, res) => {
     }
 });
 
+router.post('/agent/embed', async (req, res) => {
+    try {
+        const { provider, text, clientKeys } = req.body;
+        if (!provider || !text) {
+            return res.status(400).json({ error: 'Missing provider or text for embedding.' });
+        }
+
+        const { embedding, usage, latency_ms } = await agentService.requestProviderEmbedding({ provider, text, clientKeys });
+        res.status(200).json({ 
+            embedding, 
+            usage: { ...usage, latency_ms } 
+        });
+    } catch (err) {
+        console.error('LLM Embedding Proxy error:', err);
+        res.status(502).json({ 
+            error: 'Failed to retrieve embedding from LLM provider.',
+            detail: err.message
+        });
+    }
+});
+
+
 module.exports = router;

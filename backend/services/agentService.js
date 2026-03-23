@@ -177,6 +177,87 @@ const requestProviderCompletion = async ({ provider, payload, clientKeys = {} })
     }
 };
 
+const getOpenAIEmbedding = async (keys, text) => {
+    const { data, latency_ms } = await callProviderApi({
+        providerName: 'OpenAI',
+        url: 'https://api.openai.com/v1/embeddings',
+        requestInit: {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${keys.openai}`
+            },
+            body: JSON.stringify({
+                model: 'text-embedding-3-small',
+                input: text
+            })
+        }
+    });
+
+    const embedding = data?.data?.[0]?.embedding;
+    if (!Array.isArray(embedding)) throw new Error('OpenAI response was missing embedding data.');
+
+    const usage = {
+        prompt_tokens: data.usage?.prompt_tokens || 0,
+        completion_tokens: 0,
+        total_tokens: data.usage?.total_tokens || 0
+    };
+
+    return { embedding, usage, latency_ms };
+};
+
+const getGeminiEmbedding = async (keys, text) => {
+    const { data, latency_ms } = await callProviderApi({
+        providerName: 'Gemini',
+        url: `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${keys.gemini}`,
+        requestInit: {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                content: { parts: [{ text }] }
+            })
+        }
+    });
+
+    const embedding = data?.embedding?.values;
+    if (!Array.isArray(embedding)) throw new Error('Gemini response was missing embedding data.');
+
+    const usage = {
+        prompt_tokens: 0, // Gemini embedding API doesn't return usage in the same way, usually billed per 1k characters/tokens but not in the response metadata
+        completion_tokens: 0,
+        total_tokens: 0
+    };
+
+    return { embedding, usage, latency_ms };
+};
+
+const requestProviderEmbedding = async ({ provider, text, clientKeys = {} }) => {
+    const keys = {
+        openai: process.env.OPENAI_API_KEY || clientKeys.openai,
+        gemini: process.env.GEMINI_API_KEY || clientKeys.gemini
+    };
+
+    if (!keys[provider]) {
+        throw new Error(`Missing API key for ${provider}. Please configure it in the backend environment or frontend settings.`);
+    }
+
+    let result;
+    try {
+        switch (provider) {
+            case 'openai': result = await getOpenAIEmbedding(keys, text); break;
+            case 'gemini': result = await getGeminiEmbedding(keys, text); break;
+            default: throw new Error(`Unsupported provider for embeddings: ${provider}`);
+        }
+
+        console.log(`[LLM Embedding Proxy] ${provider} SUCCESS: ${result.latency_ms}ms`);
+        return result;
+    } catch (err) {
+        console.error(`[LLM Embedding Proxy] ${provider} ERROR:`, err.message);
+        throw err;
+    }
+};
+
 module.exports = {
-    requestProviderCompletion
+    requestProviderCompletion,
+    requestProviderEmbedding
 };

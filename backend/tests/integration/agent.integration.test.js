@@ -173,4 +173,63 @@ describe('Backend integration: Agent LLM Proxy', () => {
         const fetchArgs = fetchSpy.mock.calls[0];
         expect(fetchArgs[1].headers.Authorization).toBe('Bearer frontend-provided-key');
     });
+
+    describe('Embedding Proxy', () => {
+        test('proxies OpenAI embedding requests successfully', async () => {
+            process.env.OPENAI_API_KEY = 'test-openai-key';
+            
+            const mockResponse = {
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    data: [{ embedding: [0.1, 0.2, 0.3] }],
+                    usage: { prompt_tokens: 5, total_tokens: 5 }
+                })
+            };
+            fetchSpy.mockResolvedValue(mockResponse);
+
+            const response = await request(app)
+                .post('/api/agent/embed')
+                .send({
+                    provider: 'openai',
+                    text: 'test embedding'
+                });
+
+            expect(response.status).toBe(200);
+            expect(response.body.embedding).toEqual([0.1, 0.2, 0.3]);
+            expect(response.body.usage.prompt_tokens).toBe(5);
+        });
+
+        test('proxies Gemini embedding requests successfully', async () => {
+            process.env.GEMINI_API_KEY = 'test-gemini-key';
+            
+            const mockResponse = {
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    embedding: { values: [0.4, 0.5, 0.6] }
+                })
+            };
+            fetchSpy.mockResolvedValue(mockResponse);
+
+            const response = await request(app)
+                .post('/api/agent/embed')
+                .send({
+                    provider: 'gemini',
+                    text: 'test gemini embedding'
+                });
+
+            expect(response.status).toBe(200);
+            expect(response.body.embedding).toEqual([0.4, 0.5, 0.6]);
+        });
+
+        test('returns 400 when text is missing', async () => {
+            const response = await request(app)
+                .post('/api/agent/embed')
+                .send({ provider: 'openai' });
+
+            expect(response.status).toBe(400);
+            expect(response.body.error).toBe('Missing provider or text for embedding.');
+        });
+    });
 });

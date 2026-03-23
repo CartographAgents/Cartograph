@@ -2,7 +2,7 @@
 id: task-039
 title: Add LLM Embedding Support to Backend Proxy
 type: task
-status: in_progress
+status: pull_requested
 priority: P1
 owner: Eric Lott
 claim_owner: Eric Lott
