@@ -2,7 +2,7 @@
 id: task-034
 title: Seed Audit Trail Log on Backend for Mission Updates
 type: task
-status: in_progress
+status: pull_requested
 priority: P2
 owner: Eric Lott
 claim_owner: Eric Lott
