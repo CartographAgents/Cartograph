@@ -40,6 +40,12 @@ next_step: Add retrieval endpoint and integration tests.
 ```
 
 ## Latest Entries
+- 2026-03-23T14:20:00-05:00 | `task-039` | `done` | Added LLM embedding support to backend proxy for OpenAI (text-embedding-3-small) and Gemini (text-embedding-004). Implemented `/api/agent/embed` endpoint and updated integration tests.
+  - Evidence:
+    - `backend/services/agentService.js` (requestProviderEmbedding, getOpenAIEmbedding, getGeminiEmbedding)
+    - `backend/routes/agentRoutes.js` (POST /agent/embed)
+    - `backend/tests/integration/agent.integration.test.js` (new integration tests passed)
+  - Next step: Run `node scripts/cartograph-closeout.mjs --task task-039 --create-pr`.
 - 2026-03-23T12:07:53-05:00 | `task-043` | `todo` | Completed Alignment Mode audit and realigned Multi-View execution backlog to close vision gaps (Conflict, Dependency Path, and Mind Map views), while normalizing duplicate epic/feature IDs.
   - Evidence:
     - `agent-pack/00-context/roadmap.md`
