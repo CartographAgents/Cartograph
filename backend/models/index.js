@@ -19,7 +19,11 @@ const Decision = sequelize.define('Decision', {
     conflict: { type: DataTypes.TEXT },
     rationale: { type: DataTypes.TEXT },
     constraints: { type: DataTypes.TEXT },
-    tags: { type: DataTypes.JSON, defaultValue: [] }
+    tags: { type: DataTypes.JSON, defaultValue: [] },
+    embedding: { type: DataTypes.TEXT, allowNull: true },
+    clusterX: { type: DataTypes.FLOAT, allowNull: true },
+    clusterY: { type: DataTypes.FLOAT, allowNull: true },
+    clusterLabel: { type: DataTypes.STRING, allowNull: true }
 });
 
 const DecisionRelationship = sequelize.define('DecisionRelationship', {
