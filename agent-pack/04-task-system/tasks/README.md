@@ -30,6 +30,14 @@ Define the default unit of execution for autonomous agents.
 - Evidence Plan
 - Claim and SLA
 
+## Contextual Requirements for Task Creation
+When creating a new task, the authoring agent must ensure the task is **self-contained**:
+- **Zero-knowledge Assumption**: Assume the executor has no prior context from the conversation that generated the task or repo state.
+- **Why, not just What**: Explain the rationale and how the deliverable supports the parent feature.
+- **Explicit File Paths**: List all files likely to be modified or referenced.
+- **Implementation Strategy**: Provide a technical high-level path to completion (e.g., "Use the `apiService.js` pattern for the new endpoint").
+- **Verifiable AC**: Acceptance criteria must be objective enough for a fresh agent to validate via provided commands.
+
 ## Metadata Schema
 ```yaml
 id: task-001

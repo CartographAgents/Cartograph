@@ -79,6 +79,14 @@ For all item types, file name remains stable (`<type>-###-slug.md`); only the co
 - PR summaries should reference task IDs directly for traceability and review speed.
 - Task files move to `tasks/pull_requested/` when a PR is submitted and to `tasks/completed/` when that PR is approved.
 
+## Task Authoring Rules (Contextual Integrity)
+When an agent creates a new task (Mode A in `AGENTS.md`), they must maximize context for the downstream executor.
+- **Self-Contained Content**: Assume the executor has no prior knowledge of the repository or the preceding conversation.
+- **Detailed Goal**: Explain NOT JUST what to do, but WHY and how it fits into the broader feature.
+- **Technical Guidance**: Reference specific file paths, existing functions to reuse, or known architectural patterns.
+- **Explicit Acceptance Criteria**: AC must be objective and verifiable without further clarification.
+- **Reference Context**: Link to relevant architectural pillars (`../01-architecture/`), decisions (`../05-state/decisions-log.md`), or implementation strategy docs.
+
 ## Branch Naming Rules
 - Branch names must encode one primary item ID.
 - Accepted patterns:
