@@ -1,5 +1,65 @@
 const { Project, Pillar, Decision, DecisionRelationship, AuditLog, sequelize } = require('../models');
 
+const normalizeArray = (value) => {
+    if (Array.isArray(value)) return value;
+    if (value === null || value === undefined) return [];
+    return [value];
+};
+
+const buildDecisionPersistenceShape = (decisionInput = {}) => {
+    const acceptanceCriteria = decisionInput.acceptance_criteria ?? decisionInput.acceptanceCriteria;
+    const technicalContext = decisionInput.technical_context ?? decisionInput.technicalContext;
+
+    return {
+        question: decisionInput.question,
+        icon: decisionInput.icon,
+        context: decisionInput.context,
+        answer: decisionInput.answer,
+        conflict: decisionInput.conflict,
+        rationale: decisionInput.rationale,
+        constraints: decisionInput.constraints,
+        tags: normalizeArray(decisionInput.tags),
+        acceptanceCriteria: normalizeArray(acceptanceCriteria),
+        technicalContext: technicalContext ?? null,
+        dependencies: normalizeArray(decisionInput.dependencies),
+        priority: decisionInput.priority ?? null,
+        options: Array.isArray(decisionInput.options) ? decisionInput.options : null,
+        rawData: decisionInput
+    };
+};
+
+const buildDecisionResponseShape = (decisionRecord) => {
+    const raw = decisionRecord.rawData && typeof decisionRecord.rawData === 'object' ? decisionRecord.rawData : {};
+    const linked = decisionRecord.linkedTo ? decisionRecord.linkedTo.map(lt => ({
+        id: lt.decisionId,
+        type: lt.DecisionRelationship.type,
+        strength: lt.DecisionRelationship.strength
+    })) : [];
+
+    return {
+        ...raw,
+        id: decisionRecord.decisionId,
+        question: decisionRecord.question,
+        icon: decisionRecord.icon,
+        context: decisionRecord.context,
+        answer: decisionRecord.answer,
+        conflict: decisionRecord.conflict,
+        rationale: decisionRecord.rationale,
+        constraints: decisionRecord.constraints,
+        tags: Array.isArray(decisionRecord.tags) ? decisionRecord.tags : [],
+        acceptance_criteria: Array.isArray(decisionRecord.acceptanceCriteria)
+            ? decisionRecord.acceptanceCriteria
+            : normalizeArray(raw.acceptance_criteria ?? raw.acceptanceCriteria),
+        technical_context: decisionRecord.technicalContext ?? raw.technical_context ?? raw.technicalContext ?? null,
+        dependencies: Array.isArray(decisionRecord.dependencies)
+            ? decisionRecord.dependencies
+            : normalizeArray(raw.dependencies),
+        priority: decisionRecord.priority ?? raw.priority ?? null,
+        options: Array.isArray(decisionRecord.options) ? decisionRecord.options : (raw.options ?? null),
+        links: linked
+    };
+};
+
 const getProjectTree = async (projectId) => {
     const project = await Project.findByPk(projectId);
     if (!project) return null;
@@ -26,22 +86,7 @@ const getProjectTree = async (projectId) => {
                 title: p.title,
                 description: p.description,
                 icon: p.icon,
-                decisions: (p.Decisions || []).map(d => ({
-                    id: d.decisionId,
-                    question: d.question,
-                    icon: d.icon,
-                    context: d.context,
-                    answer: d.answer,
-                    conflict: d.conflict,
-                    rationale: d.rationale,
-                    constraints: d.constraints,
-                    tags: d.tags,
-                    links: d.linkedTo ? d.linkedTo.map(lt => ({
-                        id: lt.decisionId,
-                        type: lt.DecisionRelationship.type,
-                        strength: lt.DecisionRelationship.strength
-                    })) : []
-                })),
+                decisions: (p.Decisions || []).map(buildDecisionResponseShape),
                 subcategories: buildPillarTree(p.id)
             }));
     };
@@ -110,6 +155,7 @@ const saveProjectState = async (idea, pillars, projectId, isAgent = false) => {
 
                 if (p.decisions) {
                     for (const d of p.decisions) {
+                        const persistedShape = buildDecisionPersistenceShape(d);
                         let decision = await Decision.findOne({
                             where: { decisionId: d.id, PillarId: pillar.id },
                             transaction: t
@@ -117,26 +163,12 @@ const saveProjectState = async (idea, pillars, projectId, isAgent = false) => {
 
                         if (decision) {
                             await decision.update({
-                                question: d.question,
-                                icon: d.icon,
-                                context: d.context,
-                                answer: d.answer,
-                                conflict: d.conflict,
-                                rationale: d.rationale,
-                                constraints: d.constraints,
-                                tags: d.tags
+                                ...persistedShape
                             }, { transaction: t });
                         } else {
                             decision = await Decision.create({
                                 decisionId: d.id,
-                                question: d.question,
-                                icon: d.icon,
-                                context: d.context,
-                                answer: d.answer,
-                                conflict: d.conflict,
-                                rationale: d.rationale,
-                                constraints: d.constraints,
-                                tags: d.tags,
+                                ...persistedShape,
                                 PillarId: pillar.id
                             }, { transaction: t });
                         }

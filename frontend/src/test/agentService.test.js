@@ -60,6 +60,17 @@ describe('agentService', () => {
                 reply: 'Hello',
                 updatedDecisions: [],
                 newCategories: [],
+                newDecisions: [
+                    {
+                        targetId: 'pillar-features',
+                        decision: {
+                            id: 'feat_stripe_subscriptions',
+                            question: 'Stripe subscription payments',
+                            context: 'Support recurring billing',
+                            answer: 'Included'
+                        }
+                    }
+                ],
                 conflicts: []
             });
             const mockResponse = {
@@ -75,6 +86,7 @@ describe('agentService', () => {
             );
 
             expect(result.reply).toBe('Hello');
+            expect(result.newDecisions).toHaveLength(1);
             expect(fetch).toHaveBeenCalledWith('/api/agent/complete', expect.any(Object));
         });
     });

@@ -200,4 +200,22 @@ describe('Backend integration: persistence, rollback, and health', () => {
         expect(response.body.database).toBe('CONNECTED');
         expect(typeof response.body.timestamp).toBe('string');
     });
+
+    test('persists app settings in backend database', async () => {
+        const saveSettings = await request(app)
+            .put('/api/settings')
+            .send({
+                provider: 'openai',
+                keys: { openai: 'sk-test', anthropic: '', gemini: '' }
+            });
+
+        expect(saveSettings.status).toBe(200);
+        expect(saveSettings.body.success).toBe(true);
+        expect(saveSettings.body.provider).toBe('openai');
+
+        const fetchSettings = await request(app).get('/api/settings');
+        expect(fetchSettings.status).toBe(200);
+        expect(fetchSettings.body.provider).toBe('openai');
+        expect(fetchSettings.body.keys.openai).toBe('sk-test');
+    });
 });

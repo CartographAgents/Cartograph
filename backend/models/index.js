@@ -29,6 +29,12 @@ const Decision = sequelize.define('Decision', {
     clusterY: { type: DataTypes.FLOAT, allowNull: true },
     clusterLabel: { type: DataTypes.STRING, allowNull: true },
     icon: { type: DataTypes.STRING, allowNull: true },
+    acceptanceCriteria: { type: DataTypes.JSON, defaultValue: [] },
+    technicalContext: { type: DataTypes.TEXT, allowNull: true },
+    dependencies: { type: DataTypes.JSON, defaultValue: [] },
+    priority: { type: DataTypes.STRING, allowNull: true },
+    options: { type: DataTypes.JSON, allowNull: true },
+    rawData: { type: DataTypes.JSON, defaultValue: {} },
     PillarId: { type: DataTypes.INTEGER }
 });
 
@@ -44,6 +50,12 @@ const AuditLog = sequelize.define('AuditLog', {
     action: { type: DataTypes.STRING, allowNull: false },
     summary: { type: DataTypes.TEXT },
     isAgent: { type: DataTypes.BOOLEAN, defaultValue: false }
+});
+
+const AppSettings = sequelize.define('AppSettings', {
+    singletonKey: { type: DataTypes.STRING, unique: true, allowNull: false, defaultValue: 'global' },
+    provider: { type: DataTypes.STRING, allowNull: false, defaultValue: 'mock' },
+    keys: { type: DataTypes.JSON, allowNull: false, defaultValue: {} }
 });
 
 // Associations
@@ -76,5 +88,6 @@ module.exports = {
     Pillar,
     Decision,
     DecisionRelationship,
-    AuditLog
+    AuditLog,
+    AppSettings
 };

@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { validateBlueprint } from '../services/validationService';
 import { useChatLogic } from './useChatLogic';
 import { usePillarLogic } from './usePillarLogic';
 import { useProjectManagement } from './useProjectManagement';
 import { generateBlueprintZip } from '../services/exportService';
 import { findNodeById } from '../utils/treeUtils';
+import { fetchAppSettings, saveAppSettings } from '../services/apiService';
 
 export function useAppLogic() {
   // 1. Core State
@@ -21,13 +22,9 @@ export function useAppLogic() {
   const [viewMode, setViewMode] = useState('pillar');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [llmConfig, setLlmConfig] = useState(() => {
-    const savedKeys = localStorage.getItem('cartograph_keys');
-    const savedProvider = localStorage.getItem('cartograph_provider');
-    return {
-      keys: savedKeys ? JSON.parse(savedKeys) : { openai: '', anthropic: '', gemini: '' },
-      provider: savedProvider || 'mock'
-    };
+  const [llmConfig, setLlmConfig] = useState({
+    keys: { openai: '', anthropic: '', gemini: '' },
+    provider: 'mock'
   });
 
   // 2. Logic Containers
@@ -46,6 +43,24 @@ export function useAppLogic() {
   const { handleNewProject, handleSelectProject } = useProjectManagement(state, setters);
   const { handleSendMessage } = useChatLogic(state, setters);
   const { handleUpdateDecision, handleAddFeature, handleDeleteFeature, handleEditFeature } = usePillarLogic(state, setters);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const settings = await fetchAppSettings();
+        if (isMounted) {
+          setLlmConfig({
+            provider: settings.provider || 'mock',
+            keys: settings.keys || { openai: '', anthropic: '', gemini: '' }
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load backend app settings:', err);
+      }
+    })();
+    return () => { isMounted = false; };
+  }, []);
 
   // 3. Proactive Validation (Derived observations)
   const agentFeedback = useMemo(() => {
@@ -74,6 +89,20 @@ export function useAppLogic() {
     }
   };
 
+  const handleSaveLlmConfig = async (config) => {
+    setErrorMessage(null);
+    try {
+      const saved = await saveAppSettings(config);
+      setLlmConfig({
+        provider: saved.provider || config.provider || 'mock',
+        keys: saved.keys || config.keys || { openai: '', anthropic: '', gemini: '' }
+      });
+    } catch (err) {
+      setErrorMessage(err.message || 'Failed to save settings.');
+      throw err;
+    }
+  };
+
   const activePillar = activePillarId ? findNodeById(pillars, activePillarId) : null;
 
   return {
@@ -83,6 +112,6 @@ export function useAppLogic() {
     setViewMode, setIsSettingsOpen, setIsNotificationsOpen, setLlmConfig,
     handleNewProject, handleSelectProject,
     handleSendMessage, handleUpdateDecision, handleAddFeature, handleDeleteFeature, handleEditFeature, handleExport,
-    activePillar
+    activePillar, handleSaveLlmConfig
   };
 }

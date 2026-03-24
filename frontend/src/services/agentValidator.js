@@ -141,6 +141,14 @@ export const validateChatTurnOutput = (output, contextLabel) => {
         validateCategoryNode(category, `root.newCategories[${index}]`, contextLabel)
     );
 
+    output.newDecisions = Array.isArray(output.newDecisions) ? output.newDecisions : [];
+    output.newDecisions.forEach((insertion, index) => {
+        const path = `root.newDecisions[${index}]`;
+        assertPlainObject(insertion, path, contextLabel);
+        assertNonEmptyString(insertion.targetId, `${path}.targetId`, contextLabel);
+        validateDecisionNode(insertion.decision, `${path}.decision`, contextLabel);
+    });
+
     assertArray(output.conflicts, 'root.conflicts', contextLabel);
     output.conflicts.forEach((conflict, index) => {
         const path = `root.conflicts[${index}]`;

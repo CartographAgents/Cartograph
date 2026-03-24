@@ -31,6 +31,7 @@ export function useProjectManagement(state, setters) {
     setProjectId(null);
     setPillars([]);
     setActivePillarId(null);
+    setIsProjectsOpen(false);
     setMessages([
       { role: 'agent', content: "New session started! Describe the application you want to build." }
     ]);

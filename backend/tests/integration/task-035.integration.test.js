@@ -28,7 +28,12 @@ describe('Task-035: Decision Relationships Integration', () => {
                     answer: 'Answer 1',
                     rationale: 'Because we need it.',
                     constraints: 'Must be fast.',
-                    tags: ['critical', 'backend']
+                    tags: ['critical', 'backend'],
+                    acceptance_criteria: ['Criterion A', 'Criterion B'],
+                    technical_context: 'Use provider SDK X.',
+                    dependencies: ['feat_auth'],
+                    priority: 'P0',
+                    options: [{ id: 'opt-a', label: 'Option A', icon: null }]
                 }]
             }]
         };
@@ -45,6 +50,11 @@ describe('Task-035: Decision Relationships Integration', () => {
         expect(decision.rationale).toBe('Because we need it.');
         expect(decision.constraints).toBe('Must be fast.');
         expect(decision.tags).toContain('critical');
+        expect(decision.acceptance_criteria).toEqual(['Criterion A', 'Criterion B']);
+        expect(decision.technical_context).toBe('Use provider SDK X.');
+        expect(decision.dependencies).toEqual(['feat_auth']);
+        expect(decision.priority).toBe('P0');
+        expect(decision.options).toEqual([{ id: 'opt-a', label: 'Option A', icon: null }]);
     });
 
     test('should link two decisions and retrieve their relationship', async () => {

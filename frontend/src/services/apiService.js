@@ -49,3 +49,21 @@ export const archiveProject = async (id) => {
     if (!response.ok) throw new Error(`Failed to archive project ${id} (Status ${response.status})`);
     return await response.json();
 };
+
+export const fetchAppSettings = async () => {
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${apiUrl}/api/settings`);
+    if (!response.ok) throw new Error(`Failed to fetch app settings (Status ${response.status})`);
+    return await response.json();
+};
+
+export const saveAppSettings = async (settings) => {
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${apiUrl}/api/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+    });
+    if (!response.ok) throw new Error(`Failed to save app settings (Status ${response.status})`);
+    return await response.json();
+};

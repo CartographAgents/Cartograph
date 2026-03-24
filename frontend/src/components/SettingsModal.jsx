@@ -1,27 +1,25 @@
 import React, { useState } from 'react';
 
-export default function SettingsModal({ onClose, onSave }) {
-    const [keys, setKeys] = useState(() => {
-        const saved = localStorage.getItem('cartograph_keys');
-        return saved ? JSON.parse(saved) : { openai: '', anthropic: '', gemini: '' };
-    });
-    const [provider, setProvider] = useState(() => {
-        const savedProvider = localStorage.getItem('cartograph_provider');
-        return savedProvider || 'mock';
-    });
+export default function SettingsModal({ onClose, onSave, currentConfig }) {
+    const [keys, setKeys] = useState(currentConfig?.keys || { openai: '', anthropic: '', gemini: '' });
+    const [provider, setProvider] = useState(currentConfig?.provider || 'mock');
+    const [isSaving, setIsSaving] = useState(false);
 
-    const handleSave = () => {
-        localStorage.setItem('cartograph_keys', JSON.stringify(keys));
-        localStorage.setItem('cartograph_provider', provider);
-        onSave({ keys, provider });
-        onClose();
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await onSave({ keys, provider });
+            onClose();
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
         <div className="modal-overlay">
             <div className="modal-content glass-panel">
                 <h2>LLM Settings (BYOK)</h2>
-                <p className="modal-desc">Provide your APIs keys to empower Cartograph with real AI. Keys are stored locally in your browser.</p>
+                <p className="modal-desc">Provide your APIs keys to empower Cartograph with real AI. Settings are persisted in the backend database.</p>
 
                 <div className="form-group">
                     <label>Active Provider</label>
@@ -46,8 +44,10 @@ export default function SettingsModal({ onClose, onSave }) {
                 )}
 
                 <div className="modal-actions">
-                    <button className="btn-secondary" onClick={onClose}>Cancel</button>
-                    <button className="btn-primary" onClick={handleSave}>Save Settings</button>
+                    <button className="btn-secondary" onClick={onClose} disabled={isSaving}>Cancel</button>
+                    <button className="btn-primary" onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? 'Saving...' : 'Save Settings'}
+                    </button>
                 </div>
             </div>
         </div>
