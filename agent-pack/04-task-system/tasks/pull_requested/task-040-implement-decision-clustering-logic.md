@@ -2,7 +2,7 @@
 id: task-040
 title: Implement Decision Clustering Logic and API
 type: task
-status: in_progress
+status: pull_requested
 priority: P1
 owner: Eric Lott
 claim_owner: Eric Lott
