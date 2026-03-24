@@ -40,6 +40,13 @@ next_step: Add retrieval endpoint and integration tests.
 ```
 
 ## Latest Entries
+- 2026-03-24T12:05:00-05:00 | `task-040` | `done` | Implemented decision clustering logic and API. Added mapping from high-dimensional embeddings to 2D space using PCA and K-Means for semantic visualization. Cached embeddings and coordinates in Decision model.
+  - Evidence:
+    - `backend/models/index.js` (added embedding, clusterX, clusterY, clusterLabel)
+    - `backend/services/clusteringService.js` (new service with PCA/K-Means)
+    - `backend/routes/projectRoutes.js` (added GET /api/projects/:id/clusters)
+    - `backend/tests/integration/clustering.integration.test.js` (tests passed)
+  - Next step: Run `node scripts/cartograph-closeout.mjs --task task-040 --create-pr`.
 - 2026-03-23T14:20:00-05:00 | `task-039` | `done` | Added LLM embedding support to backend proxy for OpenAI (text-embedding-3-small) and Gemini (text-embedding-004). Implemented `/api/agent/embed` endpoint and updated integration tests.
   - Evidence:
     - `backend/services/agentService.js` (requestProviderEmbedding, getOpenAIEmbedding, getGeminiEmbedding)

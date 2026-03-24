@@ -7,6 +7,7 @@ const {
     linkDecisions, 
     getDecisionGraph 
 } = require('../services/projectService');
+const { getProjectClusters } = require('../services/clusteringService');
 
 // Get all projects
 router.get('/projects', async (req, res) => {
@@ -97,6 +98,17 @@ router.get('/decisions/:id/graph', async (req, res) => {
         const graph = await getDecisionGraph(req.params.id);
         if (!graph) return res.status(404).json({ error: 'Decision not found.' });
         res.json(graph);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get project clusters
+router.get('/projects/:id/clusters', async (req, res) => {
+    try {
+        const clusters = await getProjectClusters(req.params.id);
+        if (!clusters) return res.status(404).json({ error: 'Project not found' });
+        res.json(clusters);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
