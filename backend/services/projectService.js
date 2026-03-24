@@ -12,15 +12,21 @@ const getProjectTree = async (projectId) => {
         }]
     });
 
-    const buildPillarTree = (parentId = null) => {
-        return allPillars
-            .filter(p => p.parentId === parentId)
+    const buildPillarTree = (targetParentId = null) => {
+        return (allPillars || [])
+            .filter(p => {
+                const pid = p.get('parentId');
+                // Standardize null/undefined to null for comparison
+                const currentParentId = pid === undefined ? null : pid;
+                if (targetParentId === null) return currentParentId === null;
+                return String(currentParentId) === String(targetParentId);
+            })
             .map(p => ({
                 id: p.pillarId,
                 title: p.title,
                 description: p.description,
                 icon: p.icon,
-                decisions: p.Decisions.map(d => ({
+                decisions: (p.Decisions || []).map(d => ({
                     id: d.decisionId,
                     question: d.question,
                     icon: d.icon,
@@ -68,10 +74,17 @@ const saveProjectState = async (idea, pillars, projectId, isAgent = false) => {
         const seenDecisionIds = new Set();
 
         const upsertPillars = async (pillarsArray, parentDatabaseId = null) => {
-            if (!pillarsArray) return;
+            if (!pillarsArray || !Array.isArray(pillarsArray)) return;
+            
             for (const p of pillarsArray) {
+                if (!p.id) continue;
+                
                 let pillar = await Pillar.findOne({
-                    where: { pillarId: p.id, ProjectId: project.id },
+                    where: { 
+                        pillarId: p.id, 
+                        ProjectId: project.id,
+                        parentId: parentDatabaseId
+                    },
                     transaction: t
                 });
 
@@ -140,7 +153,6 @@ const saveProjectState = async (idea, pillars, projectId, isAgent = false) => {
         await upsertPillars(pillars);
 
         // Cleanup: remove decisions that are no longer in the provided tree
-        // Only scope to pillars that were processed in this update
         await Decision.destroy({
             where: {
                 PillarId: { [sequelize.Sequelize.Op.in]: Array.from(seenPillarIds) },

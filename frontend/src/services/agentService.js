@@ -65,7 +65,7 @@ export const generateCategoriesForPillar = async (ideaDescription, pillar, confi
     const { provider, keys } = config;
     if (provider === 'mock') return mockExpandPillar(ideaDescription, pillar);
 
-    const prompt = `Application Idea:\n${ideaDescription}\n\nAssigned Pillar to expand:\n${pillar.title}\n${pillar.description}`;
+    const prompt = `Application Idea:\n${ideaDescription}\n\nAssigned Pillar to expand:\nID: ${pillar.id}\nTitle: ${pillar.title}\nDescription: ${pillar.description}`;
     
     let payload;
     if (provider === 'openai') {

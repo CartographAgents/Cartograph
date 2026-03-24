@@ -62,7 +62,8 @@ const validateDecisionNode = (node, path, contextLabel) => {
     assertNonEmptyString(node.question, `${path}.question`, contextLabel);
     assertNonEmptyString(node.context, `${path}.context`, contextLabel);
     assertNullableString(node.answer, `${path}.answer`, contextLabel);
-    assertNullableString(node.icon, `${path}.icon`, contextLabel);
+    // Allow icon to be missing or null
+    node.icon = typeof node.icon === 'string' ? node.icon : null;
     
     if (node.options) {
         assertArray(node.options, `${path}.options`, contextLabel);
@@ -90,15 +91,13 @@ export const validateCategoryNode = (node, path, contextLabel) => {
     assertPlainObject(node, path, contextLabel);
     assertNonEmptyString(node.id, `${path}.id`, contextLabel);
     assertNonEmptyString(node.title, `${path}.title`, contextLabel);
-    assertNonEmptyString(node.description, `${path}.description`, contextLabel);
-    assertNullableString(node.icon, `${path}.icon`, contextLabel);
+    node.icon = typeof node.icon === 'string' ? node.icon : null;
+    node.subcategories = Array.isArray(node.subcategories) ? node.subcategories : [];
+    node.decisions = Array.isArray(node.decisions) ? node.decisions : [];
 
-    assertArray(node.subcategories, `${path}.subcategories`, contextLabel);
     node.subcategories.forEach((subcategory, index) =>
         validateCategoryNode(subcategory, `${path}.subcategories[${index}]`, contextLabel)
     );
-
-    assertArray(node.decisions, `${path}.decisions`, contextLabel);
     node.decisions.forEach((decision, index) =>
         validateDecisionNode(decision, `${path}.decisions[${index}]`, contextLabel)
     );
@@ -112,16 +111,16 @@ export const validatePillarArrayOutput = (output, contextLabel) => {
 
 export const validateCategoryExpansionOutput = (output, contextLabel) => {
     assertPlainObject(output, 'root', contextLabel);
-    assertArray(output.subcategories, 'root.subcategories', contextLabel);
+    output.subcategories = Array.isArray(output.subcategories) ? output.subcategories : [];
+    output.decisions = Array.isArray(output.decisions) ? output.decisions : [];
+
     output.subcategories.forEach((subcategory, index) =>
         validateCategoryNode(subcategory, `root.subcategories[${index}]`, contextLabel)
     );
 
-    assertArray(output.decisions, 'root.decisions', contextLabel);
     output.decisions.forEach((decision, index) =>
         validateDecisionNode(decision, `root.decisions[${index}]`, contextLabel)
     );
-
     return output;
 };
 
