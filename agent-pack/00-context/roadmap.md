@@ -22,6 +22,13 @@
 * **Full Blueprint Export**: Move beyond basic text exports. The "Export Zip" must contain the complete `00-07` folder structure, fully populated with the current project's context.
 * **Scaffolding Engine**: Automatically generate basic task structures and acceptance criteria based on architecture decisions.
 * **Validator Suite**: Ensure only "complete" and "safe" packs can be exported (e.g., checking for missing pill-essential decisions).
+* **Intelligent Stack Selection**: Recommend curated technology stacks based on the user's initial idea to jump-start project development with industry-standard scaffolding.
+    - **Web (Full Stack)**: MERN, MEAN, LAMP, JAMstack
+    - **Enterprise**: .NET Stack, Power Platform
+    - **Frontend/Mobile**: Next.js, React Native, Flutter
+    - **Backend Focused**: Spring Boot, Django/FastAPI, NestJS
+    - **Specialized**: AI Stack (Python/LLMs), Cloud-Native (Docker/K8s)
+
 
 ---
 
