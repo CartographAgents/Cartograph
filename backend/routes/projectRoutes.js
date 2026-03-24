@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Project } = require('../models');
+const { Project, AppSettings } = require('../models');
 const { 
     getProjectTree, 
     saveProjectState, 
@@ -85,6 +85,38 @@ router.post('/save-state', async (req, res) => {
 
         const resultId = await saveProjectState(idea, pillars, projectId, isAgent);
         res.json({ success: true, projectId: resultId });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// App settings (persisted server-side, no local-only storage)
+router.get('/settings', async (req, res) => {
+    try {
+        const [settings] = await AppSettings.findOrCreate({
+            where: { singletonKey: 'global' },
+            defaults: {
+                singletonKey: 'global',
+                provider: 'mock',
+                keys: { openai: '', anthropic: '', gemini: '' }
+            }
+        });
+        res.json({ provider: settings.provider, keys: settings.keys || {} });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.put('/settings', async (req, res) => {
+    try {
+        const provider = typeof req.body.provider === 'string' ? req.body.provider : 'mock';
+        const keys = req.body.keys && typeof req.body.keys === 'object' ? req.body.keys : {};
+        const [settings] = await AppSettings.findOrCreate({
+            where: { singletonKey: 'global' },
+            defaults: { singletonKey: 'global', provider, keys }
+        });
+        await settings.update({ provider, keys });
+        res.json({ success: true, provider: settings.provider, keys: settings.keys || {} });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

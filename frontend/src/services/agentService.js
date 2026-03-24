@@ -181,5 +181,6 @@ const mockChatTurn = async () => ({
     reply: "Got it, evaluating your decision...",
     updatedDecisions: [],
     newCategories: [],
+    newDecisions: [],
     conflicts: []
 });

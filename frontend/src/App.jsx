@@ -31,7 +31,7 @@ function App() {
     setIsSettingsOpen,
     isNotificationsOpen,
     setIsNotificationsOpen,
-    setLlmConfig,
+    llmConfig,
     handleNewProject,
     handleSelectProject,
     handleSendMessage,
@@ -39,7 +39,8 @@ function App() {
     handleAddFeature,
     handleDeleteFeature,
     handleEditFeature,
-    handleExport
+    handleExport,
+    handleSaveLlmConfig
   } = useAppLogic();
 
   return (
@@ -54,8 +55,9 @@ function App() {
 
       {isSettingsOpen && (
         <SettingsModal
+          currentConfig={llmConfig}
           onClose={() => setIsSettingsOpen(false)}
-          onSave={config => setLlmConfig(config)}
+          onSave={handleSaveLlmConfig}
         />
       )}
 
