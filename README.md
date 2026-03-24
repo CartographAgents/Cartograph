@@ -1,4 +1,4 @@
-# 🗺️ Cartograph
+# Cartograph
 
 ### **The Translation Layer Between Architecture Intent & Autonomous Execution**
 
@@ -8,7 +8,7 @@ It is not just a documentation tool—it is a **durable, machine-consumable miss
 
 ---
 
-## 🎯 **Core Mission**
+## **Core Mission**
 Most autonomous agent execution fails because inputs are fragmented, ambiguous, or stateless. Cartograph solves this by converting architecture into a **stateful, dependency-aware task system**.
 
 - **Structure for Machines**: Artifacts are shaped for deterministic interpretation first, human reading second.
@@ -17,16 +17,16 @@ Most autonomous agent execution fails because inputs are fragmented, ambiguous, 
 
 ---
 
-## ✨ **Key Features**
-- 🤖 **Agent-Guided Architecting**: Dynamically generate architecture **Pillars** and interactive **Decision Points** based on your product ideas.
-- 🔗 **Dependency Graph**: Visualize relationships, conflicts, and dependency paths across your entire architecture.
-- 🔑 **BYOK AI Integration**: Securely provide your own API keys (OpenAI, Anthropic, Gemini) to drive the reasoning engine.
-- 📦 **Automated Blueprint Export**: One-click generation of the full **Agent-Pack** file structure.
-- 🗄️ **Persistent State & Hydration**: Full-stack synchronization with a MySQL/SQLite backend, ensuring your architecture evolves over time.
+## **Key Features**
+- **Agent-Guided Architecting**: Dynamically generate architecture **Pillars** and interactive **Decision Points** based on your product ideas.
+- **Dependency Graph**: Visualize relationships, conflicts, and dependency paths across your entire architecture.
+- **BYOK AI Integration**: Securely provide your own API keys (OpenAI, Anthropic, Gemini) to drive the reasoning engine.
+- **Automated Blueprint Export**: One-click generation of the full **Agent-Pack** file structure.
+- **Persistent State & Hydration**: Full-stack synchronization with a MySQL/SQLite backend, ensuring your architecture evolves over time.
 
 ---
 
-## 🛠️ **Technical Stack**
+## **Technical Stack**
 
 | Layer | Technologies |
 | :--- | :--- |
@@ -39,7 +39,7 @@ Most autonomous agent execution fails because inputs are fragmented, ambiguous, 
 
 ---
 
-## 🚀 **Quick Start**
+## **Quick Start**
 
 ### **1. Prerequisites**
 - Node.js 22+
@@ -59,11 +59,11 @@ docker-compose up --build -d
 - **Backend API**: `http://localhost:3000`
 
 ### **3. BYOK Setup**
-Access the **Settings (⚙️)** icon in the sidebar to configure your LLM provider. Keys are stored safely in `localStorage` and never transmitted to the Cartograph backend—only to the AI provider.
+Access the **Settings** icon in the sidebar to configure your LLM provider. Keys are stored safely in `localStorage` and never transmitted to the Cartograph backend—only to the AI provider.
 
 ---
 
-## 🤖 **The Agentic Workflow (How we build Cartograph)**
+## **The Agentic Workflow (How we build Cartograph)**
 
 Cartograph is built using the same **Agent-Pack** principles it generates. To contribute, you should leverage the project's autonomous loop.
 
@@ -95,7 +95,7 @@ node scripts/cartograph-closeout.mjs --task task-### --create-pr --non-interacti
 
 ---
 
-## ⚖️ **Single-Task PR Contract**
+## **Single-Task PR Contract**
 To maintain architectural integrity, we enforce a strict **Single-Task PR Contract**:
 - **One PR = One Primary Task**: Each Pull Request must address exactly one task from `agent-pack/04-task-system/tasks/`.
 - **Traceability**: PR titles must follow the `[task-###] description` format.
@@ -104,7 +104,7 @@ To maintain architectural integrity, we enforce a strict **Single-Task PR Contra
 
 ---
 
-## 🧪 **Quality & CI**
+## **Quality & CI**
 Automated quality gates are enforced on all PRs to `main`:
 - **Static Analysis**: ESLint checks for code quality and consistency.
 - **Build Integrity**: Vite build must succeed for the frontend.
