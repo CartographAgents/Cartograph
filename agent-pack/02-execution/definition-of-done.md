@@ -26,6 +26,7 @@ A task is `completed` only when all are true:
 4. Task metadata is updated (`status: completed`, claim released).
 5. Evidence recorded in `../05-state/progress-log.md`.
 6. No unresolved blocker is linked to task ID.
+7. **Local UI Testing**: For UI/UX changes, if the agent has browser access (e.g., Antigravity), all critical user flows must be verified locally.
 
 ## Feature-Level Done Criteria
 - All child tasks are `done`.
@@ -42,6 +43,7 @@ A task is `completed` only when all are true:
 - File paths changed and validation notes.
 - For API changes: endpoint request/response verification.
 - For export changes: generated zip structure verification.
+- **For UI/UX changes**: Screenshots or recordings providing visual evidence of successful verification when using browser tools.
 
 ## Exception and Rollback Rules
 - If a critical check fails, task returns to `in_progress` or `blocked`.
