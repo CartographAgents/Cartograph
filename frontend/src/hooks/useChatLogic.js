@@ -102,6 +102,56 @@ const sanitizeAgentReply = (reply, { updatedDecisionsCount = 0 } = {}) => {
   return nextReply;
 };
 
+const KNOWN_DATASTORES = [
+  { key: 'firestore', label: 'Firestore', pattern: /\bfirestore\b/i },
+  { key: 'cosmosdb', label: 'CosmosDB', pattern: /\bcosmos\s?db\b/i },
+  { key: 'mysql', label: 'MySQL', pattern: /\bmysql\b/i },
+  { key: 'postgres', label: 'PostgreSQL', pattern: /\bpostgres(?:ql)?\b/i },
+  { key: 'mongodb', label: 'MongoDB', pattern: /\bmongo(?:db)?\b/i },
+  { key: 'dynamodb', label: 'DynamoDB', pattern: /\bdynamodb\b/i }
+];
+
+const findStoresInText = (text = '') => {
+  return KNOWN_DATASTORES
+    .filter((store) => store.pattern.test(text))
+    .map((store) => ({ key: store.key, label: store.label }));
+};
+
+const collectResolvedDatastoreDecisions = (nodes, bucket = []) => {
+  (nodes || []).forEach((node) => {
+    (node.decisions || []).forEach((decision) => {
+      const answerText = `${decision.answer || ''} ${decision.question || ''} ${decision.context || ''}`;
+      const stores = findStoresInText(answerText);
+      if (stores.length > 0 && decision.answer) {
+        bucket.push({ decisionId: decision.id, stores });
+      }
+    });
+    if (node.subcategories?.length) collectResolvedDatastoreDecisions(node.subcategories, bucket);
+  });
+  return bucket;
+};
+
+const buildDatastoreConflict = (pillars, latestUserMessage) => {
+  const proposedStores = findStoresInText(latestUserMessage);
+  if (proposedStores.length === 0) return null;
+
+  const resolved = collectResolvedDatastoreDecisions(pillars);
+  if (resolved.length === 0) return null;
+
+  const existingKeys = new Set(resolved.flatMap((r) => r.stores.map((s) => s.key)));
+  const proposedNew = proposedStores.filter((s) => !existingKeys.has(s.key));
+  if (proposedNew.length === 0) return null;
+
+  const existingLabels = [...new Set(resolved.flatMap((r) => r.stores.map((s) => s.label)))];
+  const proposedLabels = [...new Set(proposedNew.map((s) => s.label))];
+  const decisionIds = [...new Set(resolved.map((r) => r.decisionId))];
+
+  return {
+    description: `Potential datastore divergence: existing decisions use ${existingLabels.join(', ')}, while the new proposal introduces ${proposedLabels.join(', ')}. Consider consolidating data stores or explicitly separating bounded contexts.`,
+    decisionIds
+  };
+};
+
 export function useChatLogic(state, setters) {
   const { messages, pillars, projectId, llmConfig } = state;
   const { setMessages, setPillars, setIsWaiting, setProjectId, setErrorMessage } = setters;
@@ -158,6 +208,7 @@ export function useChatLogic(state, setters) {
 
   const handleSubsequentTurn = async (newMessages) => {
     const result = await processChatTurn(newMessages, pillars, llmConfig);
+    const latestUserMessage = newMessages[newMessages.length - 1]?.content || '';
     let nextPillars = [...pillars];
     if (result.newCategories?.length > 0) nextPillars = [...nextPillars, ...result.newCategories];
     if (result.newDecisions?.length > 0) {
@@ -169,18 +220,24 @@ export function useChatLogic(state, setters) {
     if (result.updatedDecisions?.length > 0) {
       nextPillars = updateNodeDecisions(nextPillars, result.updatedDecisions, (d, update) => ({ ...d, answer: update.answer }));
     }
-    if (result.conflicts?.length > 0) {
-      result.conflicts.forEach(conflict => {
+    const heuristicConflict = buildDatastoreConflict(nextPillars, latestUserMessage);
+    const allConflicts = [...(result.conflicts || []), ...(heuristicConflict ? [heuristicConflict] : [])];
+    if (allConflicts.length > 0) {
+      allConflicts.forEach(conflict => {
         nextPillars = updateNodeDecisions(nextPillars, conflict.decisionIds, (d) => ({ ...d, conflict: conflict.description }));
       });
     }
 
-    const latestUserMessage = newMessages[newMessages.length - 1]?.content || '';
     nextPillars = applyRealtimeStripeFallback(nextPillars, latestUserMessage);
 
+    const baseReply = heuristicConflict
+      ? `${result.reply}\n\nI also see a potential datastore divergence versus earlier decisions. We can keep multiple stores, but we should explicitly justify the boundary to avoid unnecessary complexity.`
+      : result.reply;
+
+    const finalReply = sanitizeAgentReply(baseReply, { updatedDecisionsCount: result.updatedDecisions?.length || 0 });
+
     setPillars(nextPillars);
-    const reply = sanitizeAgentReply(result.reply, { updatedDecisionsCount: result.updatedDecisions?.length || 0 });
-    setMessages([...newMessages, { role: 'agent', content: reply }]);
+    setMessages([...newMessages, { role: 'agent', content: finalReply }]);
 
     const ideaMsg = newMessages.find(m => m.role === 'user');
     if (ideaMsg) {

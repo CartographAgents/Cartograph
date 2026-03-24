@@ -2,11 +2,19 @@
 id: task-041
 title: Add Semantic Cluster View to Frontend
 type: task
+<<<<<<<< HEAD:agent-pack/04-task-system/tasks/completed/task-041-add-semantic-cluster-view-to-frontend.md
 status: completed
 priority: P1
 owner: Eric Lott
 claim_owner: Eric Lott
 claim_status: released
+========
+status: todo
+priority: P1
+owner: Eric Lott
+claim_owner: null
+claim_status: unclaimed
+>>>>>>>> 34764e1 (Updated chat logic for finding conflicts and moved task-041 back to todo):agent-pack/04-task-system/tasks/todo/task-041-add-semantic-cluster-view-to-frontend.md
 claim_expires_at: null
 sla_due_at: 2026-03-28
 depends_on:
