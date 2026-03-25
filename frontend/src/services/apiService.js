@@ -75,3 +75,11 @@ export const fetchDecisionSemanticNeighbors = async (projectId, decisionId, limi
     if (!response.ok) throw new Error(`Failed to fetch semantic neighbors (Status ${response.status})`);
     return await response.json();
 };
+
+export const fetchDecisionSuggestions = async (projectId, decisionId, limit = 6) => {
+    if (!projectId || !decisionId) return { decisionId, suggestions: [] };
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${apiUrl}/api/projects/${projectId}/decisions/${decisionId}/suggestions?limit=${limit}`);
+    if (!response.ok) throw new Error(`Failed to fetch decision suggestions (Status ${response.status})`);
+    return await response.json();
+};

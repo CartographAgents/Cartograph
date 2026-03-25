@@ -42,15 +42,16 @@ const parseRouteFromPath = (pathname = '/') => {
 
 const buildPathFromState = ({ projectId, viewMode, activePillarId, activeDecisionId }) => {
   if (!projectId) return '/';
-  if (viewMode === 'graph') return `/projects/${projectId}/graph`;
-  if (viewMode === 'overview') return `/projects/${projectId}/overview`;
+  const pid = String(projectId);
+  if (viewMode === 'graph') return `/projects/${pid}/graph`;
+  if (viewMode === 'overview') return `/projects/${pid}/overview`;
   if (viewMode === 'decision' && activeDecisionId) {
     return activePillarId
-      ? `/projects/${projectId}/focus/${activePillarId}/${activeDecisionId}`
-      : `/projects/${projectId}/focus/${activeDecisionId}`;
+      ? `/projects/${pid}/focus/${activePillarId}/${activeDecisionId}`
+      : `/projects/${pid}/focus/${activeDecisionId}`;
   }
-  if (activePillarId) return `/projects/${projectId}/details/${activePillarId}`;
-  return `/projects/${projectId}/details`;
+  if (activePillarId) return `/projects/${pid}/details/${activePillarId}`;
+  return `/projects/${pid}/details`;
 };
 
 const findPillarContainingDecision = (nodes = [], decisionId) => {
@@ -68,6 +69,7 @@ function App() {
   const [chatFocusTrigger, setChatFocusTrigger] = React.useState(0);
   const isApplyingRouteRef = React.useRef(false);
   const hasAppliedInitialRouteRef = React.useRef(false);
+  const loadingRouteProjectRef = React.useRef(null);
   const {
     messages,
     isWaiting,
@@ -101,12 +103,18 @@ function App() {
     handleExport,
     handleSaveLlmConfig
   } = useAppLogic();
+  const handleSelectProjectRef = React.useRef(handleSelectProject);
+
+  React.useEffect(() => {
+    handleSelectProjectRef.current = handleSelectProject;
+  }, [handleSelectProject]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const applyRoute = async () => {
       const route = parseRouteFromPath(window.location.pathname);
+      const normalizedProjectId = projectId == null ? null : String(projectId);
       if (!route.projectId) {
         hasAppliedInitialRouteRef.current = true;
         return;
@@ -114,8 +122,10 @@ function App() {
 
       isApplyingRouteRef.current = true;
       try {
-        if (route.projectId !== projectId) {
-          await handleSelectProject(route.projectId);
+        if (route.projectId !== normalizedProjectId) {
+          if (loadingRouteProjectRef.current === route.projectId) return;
+          loadingRouteProjectRef.current = route.projectId;
+          await handleSelectProjectRef.current(route.projectId);
           return;
         }
 
@@ -146,6 +156,7 @@ function App() {
         }
         hasAppliedInitialRouteRef.current = true;
       } finally {
+        loadingRouteProjectRef.current = null;
         setTimeout(() => {
           isApplyingRouteRef.current = false;
         }, 0);
@@ -160,14 +171,7 @@ function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [
-    projectId,
-    pillars,
-    handleSelectProject,
-    setActiveDecisionId,
-    setActivePillarId,
-    setViewMode
-  ]);
+  }, [projectId, pillars]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -210,6 +214,7 @@ function App() {
       <Sidebar
         pillars={pillars}
         activePillarId={activePillarId}
+        activeDecisionId={activeDecisionId}
         onSelectPillar={(node) => setActivePillarId(node.id)}
         onSelectDecision={(pillarId, decisionId) => {
           setActivePillarId(pillarId);

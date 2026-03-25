@@ -1,6 +1,7 @@
 import React from 'react';
+import { FaCheck } from 'react-icons/fa';
 import { getDecisionInsightBundle } from '../utils/decisionInsights';
-import { fetchDecisionSemanticNeighbors } from '../services/apiService';
+import { fetchDecisionSemanticNeighbors, fetchDecisionSuggestions } from '../services/apiService';
 
 const flattenAllDecisions = (nodes = [], parentTrail = []) => {
     const rows = [];
@@ -19,79 +20,6 @@ const flattenAllDecisions = (nodes = [], parentTrail = []) => {
     return rows;
 };
 
-const cleanSuggestion = (value) => String(value || '').trim().replace(/\s+/g, ' ');
-
-const parseInlineOptions = (question = '') => {
-    const match = String(question).match(/\(([^)]+)\)/);
-    if (!match) return [];
-    if (!String(match[1]).includes('/')) return [];
-    return match[1].split('/').map(cleanSuggestion).filter(Boolean);
-};
-
-const buildSuggestions = (decision, semanticMatches = []) => {
-    const targetText = `${decision.question || ''} ${decision.context || ''}`.toLowerCase();
-    const domainPatterns = {
-        auth: /\bauth|authentication|authorization|oauth|jwt|token|api key|rbac|session\b/i,
-        data: /\bdata|database|storage|schema|sql|nosql|warehouse|etl|backup|retention\b/i,
-        security: /\bsecurity|encryption|privacy|gdpr|compliance|secret|vault|access control\b/i,
-        api: /\bapi|endpoint|rest|graphql|gateway|webhook|contract\b/i,
-        ui: /\bui|ux|frontend|responsive|accessibility|design system\b/i
-    };
-    const targetDomains = Object.entries(domainPatterns)
-        .filter(([, pattern]) => pattern.test(targetText))
-        .map(([key]) => key);
-
-    const domainScore = (text) => {
-        if (targetDomains.length === 0) return 0;
-        const hay = String(text || '').toLowerCase();
-        return targetDomains.reduce((count, domain) => (
-            domainPatterns[domain].test(hay) ? count + 1 : count
-        ), 0);
-    };
-
-    const suggestions = [];
-    const seen = new Set();
-    const add = (label, source, reason) => {
-        const normalized = cleanSuggestion(label);
-        if (!normalized) return;
-        const key = normalized.toLowerCase();
-        if (seen.has(key)) return;
-        seen.add(key);
-        suggestions.push({ label: normalized, source, reason });
-    };
-
-    (decision.options || []).forEach((opt) => {
-        const label = cleanSuggestion(opt?.label || opt?.title || opt?.value || opt?.id);
-        add(label, 'Configured option', 'Matches a predefined choice for this decision.');
-    });
-    parseInlineOptions(decision.question).forEach((label) => {
-        add(label, 'Question options', 'Extracted from the decision prompt options.');
-    });
-    semanticMatches
-        .filter((m) => m?.answer)
-        .map((m) => ({
-            ...m,
-            _domainScore: domainScore(`${m.question || ''} ${m.answer || ''} ${m.breadcrumb || ''}`)
-        }))
-        .filter((m) => m._domainScore > 0 || (m.score || 0) >= 0.75)
-        .sort((a, b) => {
-            if (b._domainScore !== a._domainScore) return b._domainScore - a._domainScore;
-            return (b.score || 0) - (a.score || 0);
-        })
-        .slice(0, 4)
-        .forEach((m) => {
-            add(m.answer, 'Similar resolved decision', `Used in "${m.question}".`);
-        });
-
-    if (suggestions.length === 0) {
-        add('Run a short spike first', 'Fallback', 'Collect implementation and risk data before locking a choice.');
-        add('Choose the simplest viable option', 'Fallback', 'Bias for lower complexity unless constraints require more.');
-        add('Defer with explicit trigger', 'Fallback', 'Document when this decision must be revisited.');
-    }
-
-    return suggestions.slice(0, 6);
-};
-
 export default function DecisionFocusView({
     pillars,
     decisionId,
@@ -104,6 +32,9 @@ export default function DecisionFocusView({
     const { target, bestPractices, impacts } = insights;
     const [showWhy, setShowWhy] = React.useState(false);
     const [embeddingSemanticMatches, setEmbeddingSemanticMatches] = React.useState([]);
+    const [decisionSuggestions, setDecisionSuggestions] = React.useState([]);
+    const [isSuggestionsLoading, setIsSuggestionsLoading] = React.useState(false);
+    const [suggestionsError, setSuggestionsError] = React.useState('');
     const [pendingSuggestion, setPendingSuggestion] = React.useState(null);
     const allDecisions = React.useMemo(() => flattenAllDecisions(pillars), [pillars]);
 
@@ -122,6 +53,24 @@ export default function DecisionFocusView({
             .catch(() => {
                 if (cancelled) return;
                 setEmbeddingSemanticMatches([]);
+            });
+
+        setIsSuggestionsLoading(true);
+        setSuggestionsError('');
+        setDecisionSuggestions([]);
+        fetchDecisionSuggestions(projectId, decisionId, 6)
+            .then((data) => {
+                if (cancelled) return;
+                const suggestions = Array.isArray(data?.suggestions) ? data.suggestions : [];
+                setDecisionSuggestions(suggestions);
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                setSuggestionsError(err?.message || 'Failed to generate suggestions.');
+            })
+            .finally(() => {
+                if (cancelled) return;
+                setIsSuggestionsLoading(false);
             });
 
         return () => { cancelled = true; };
@@ -231,11 +180,6 @@ export default function DecisionFocusView({
         ];
     }, [allDecisions, combinedImpacts, embeddingSemanticMatches]);
 
-    const decisionSuggestions = React.useMemo(
-        () => buildSuggestions(decision, embeddingSemanticMatches),
-        [decision, embeddingSemanticMatches]
-    );
-
     return (
         <div className="glass-panel decision-focus-shell" style={{ padding: '1.15rem 1.2rem', height: '100%', overflow: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'flex-start', marginBottom: '0.8rem' }}>
@@ -309,31 +253,60 @@ export default function DecisionFocusView({
                     <p style={{ margin: '0 0 0.5rem 0', opacity: 0.8, fontSize: '0.84rem' }}>
                         Click a suggestion, then confirm to apply it as the current decision.
                     </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                        {decisionSuggestions.map((suggestion, idx) => (
-                            <button
-                                key={`${suggestion.label}-${idx}`}
-                                className="btn-secondary"
-                                style={{
-                                    textAlign: 'left',
-                                    whiteSpace: 'normal',
-                                    lineHeight: 1.3,
-                                    borderColor: pendingSuggestion?.label === suggestion.label ? '#3b82f6' : 'rgba(255,255,255,0.12)',
-                                    background: pendingSuggestion?.label === suggestion.label ? 'rgba(59,130,246,0.14)' : 'rgba(255,255,255,0.04)'
-                                }}
-                                onClick={() => setPendingSuggestion(suggestion)}
-                                title={`Use suggestion: ${suggestion.label}`}
-                            >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
-                                    <strong>{suggestion.label}</strong>
-                                    <span style={{ fontSize: '0.72rem', opacity: 0.8 }}>{suggestion.source}</span>
+                    {isSuggestionsLoading ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                            {[0, 1, 2].map((idx) => (
+                                <div
+                                    key={`suggestion-skeleton-${idx}`}
+                                    style={{
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '10px',
+                                        padding: '0.65rem 0.8rem',
+                                        background: 'rgba(255,255,255,0.04)'
+                                    }}
+                                >
+                                    <div className="decision-skeleton-line title" />
+                                    <div className="decision-skeleton-line body" />
+                                    <div className="decision-skeleton-line body short" />
                                 </div>
-                                <div style={{ fontSize: '0.8rem', opacity: 0.78, marginTop: '0.2rem' }}>
-                                    {suggestion.reason}
-                                </div>
-                            </button>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    ) : suggestionsError ? (
+                        <p style={{ opacity: 0.85, margin: 0, color: '#b45309' }}>
+                            {suggestionsError}
+                        </p>
+                    ) : decisionSuggestions.length === 0 ? (
+                        <p style={{ opacity: 0.78, margin: 0 }}>
+                            No model-generated suggestions yet. Check provider key settings.
+                        </p>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                            {decisionSuggestions.map((suggestion, idx) => (
+                                <button
+                                    key={`${suggestion.label}-${idx}`}
+                                    className={`btn-secondary decision-suggestion-card ${pendingSuggestion?.label === suggestion.label ? 'selected' : ''}`}
+                                    style={{
+                                        textAlign: 'left'
+                                    }}
+                                    onClick={() => setPendingSuggestion(suggestion)}
+                                    title={`Use suggestion: ${suggestion.label}`}
+                                >
+                                    {idx === 0 && (
+                                        <div className="decision-recommended-badge">
+                                            <FaCheck size={10} />
+                                            <span>Recommended</span>
+                                        </div>
+                                    )}
+                                    <div className="decision-suggestion-title">
+                                        {suggestion.label}
+                                    </div>
+                                    <div className="decision-suggestion-reason">
+                                        {suggestion.reason}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     {pendingSuggestion && (
                         <div style={{ marginTop: '0.6rem', border: '1px solid rgba(16,185,129,0.32)', borderRadius: '10px', background: 'rgba(16,185,129,0.12)', padding: '0.55rem 0.65rem', display: 'flex', justifyContent: 'space-between', gap: '0.6rem', alignItems: 'center' }}>
@@ -444,6 +417,77 @@ export default function DecisionFocusView({
                     border-radius: 10px;
                     padding: 0.85rem;
                     font-size: 0.88rem;
+                }
+                .decision-skeleton-line {
+                    border-radius: 6px;
+                    margin-bottom: 0.4rem;
+                    background: linear-gradient(90deg, rgba(148,163,184,0.18) 0%, rgba(148,163,184,0.32) 50%, rgba(148,163,184,0.18) 100%);
+                    background-size: 220% 100%;
+                    animation: decisionSkeletonPulse 1.1s ease-in-out infinite;
+                }
+                .decision-skeleton-line.title {
+                    height: 18px;
+                    width: 45%;
+                }
+                .decision-skeleton-line.body {
+                    height: 14px;
+                    width: 96%;
+                }
+                .decision-skeleton-line.body.short {
+                    width: 72%;
+                    margin-bottom: 0;
+                }
+                .decision-recommended-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 0.3rem;
+                    font-size: 0.68rem;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 0.04em;
+                    color: #065f46;
+                    background: rgba(16,185,129,0.14);
+                    border: 1px solid rgba(16,185,129,0.4);
+                    border-radius: 999px;
+                    padding: 0.15rem 0.5rem;
+                    margin-bottom: 0.45rem;
+                }
+                .decision-suggestion-card {
+                    width: 100%;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: flex-start;
+                    border: 1px solid rgba(15,23,42,0.1);
+                    background: rgba(255,255,255,0.72);
+                    border-radius: 10px;
+                    padding: 0.7rem 0.9rem;
+                    white-space: normal;
+                    line-height: 1.35;
+                    transition: border-color 0.18s ease, background 0.18s ease;
+                }
+                .decision-suggestion-card:hover {
+                    border-color: rgba(59,130,246,0.32);
+                    background: rgba(239,246,255,0.78);
+                }
+                .decision-suggestion-card.selected {
+                    border-color: rgba(59,130,246,0.56);
+                    background: rgba(219,234,254,0.72);
+                }
+                .decision-suggestion-title {
+                    font-weight: 700;
+                    font-size: 1.12rem;
+                    line-height: 1.25;
+                    color: #111827;
+                    margin-bottom: 0.55rem;
+                }
+                .decision-suggestion-reason {
+                    font-size: 1.02rem;
+                    line-height: 1.45;
+                    color: #42556f;
+                }
+                @keyframes decisionSkeletonPulse {
+                    0% { background-position: 200% 0; }
+                    100% { background-position: -200% 0; }
                 }
                 @media (max-width: 980px) {
                     .decision-focus-top-grid {

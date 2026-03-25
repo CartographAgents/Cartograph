@@ -9,6 +9,7 @@ const {
 } = require('../services/projectService');
 const { getProjectClusters } = require('../services/clusteringService');
 const { getDecisionSemanticNeighbors } = require('../services/semanticService');
+const { getDecisionSuggestions } = require('../services/decisionSuggestionService');
 
 // Get all projects
 router.get('/projects', async (req, res) => {
@@ -167,6 +168,18 @@ router.get('/projects/:id/decisions/:decisionId/semantic', async (req, res) => {
     try {
         const limit = Number(req.query.limit || 8);
         const result = await getDecisionSemanticNeighbors(req.params.id, req.params.decisionId, limit);
+        if (!result) return res.status(404).json({ error: 'Project not found' });
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get LLM-generated suggestions for a decision (provider/API-key driven)
+router.get('/projects/:id/decisions/:decisionId/suggestions', async (req, res) => {
+    try {
+        const limit = Number(req.query.limit || 6);
+        const result = await getDecisionSuggestions(req.params.id, req.params.decisionId, limit);
         if (!result) return res.status(404).json({ error: 'Project not found' });
         res.json(result);
     } catch (err) {
