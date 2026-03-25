@@ -11,6 +11,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { buildGraphFromPillars, getLayoutedElements } from '../utils/graphUtils';
+import { fetchProjectSemanticLinks } from '../services/apiService';
 
 const DecisionNode = ({ data }) => {
   const isResolved = !!data.answer;
@@ -56,7 +57,7 @@ const DecisionNode = ({ data }) => {
   );
 };
 
-const GraphView = ({ pillars, onSelectDecision }) => {
+const GraphView = ({ pillars, projectId, onSelectDecision }) => {
   const nodeTypes = useMemo(() => ({
     decision: DecisionNode,
   }), []);
@@ -68,14 +69,51 @@ const GraphView = ({ pillars, onSelectDecision }) => {
     console.log('GraphView: pillars updated', pillars?.length);
     if (!pillars || pillars.length === 0) return;
 
-    const { nodes: rawNodes, edges: rawEdges } = buildGraphFromPillars(pillars);
-    
-    if (rawNodes.length > 0) {
-        const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(rawNodes, rawEdges);
-        setNodes(layoutedNodes);
-        setEdges(layoutedEdges);
-    }
-  }, [pillars, setNodes, setEdges]);
+    let cancelled = false;
+    const applyGraph = async () => {
+      const { nodes: rawNodes, edges: rawEdges } = buildGraphFromPillars(pillars);
+      if (rawNodes.length === 0) return;
+
+      let semanticEdges = [];
+      if (projectId) {
+        try {
+          const semantic = await fetchProjectSemanticLinks(projectId, 0.62, 2);
+          const links = Array.isArray(semantic?.links) ? semantic.links : [];
+          const existing = new Set(rawEdges.map((edge) => {
+            const [left, right] = [edge.source, edge.target].sort();
+            return `${left}::${right}`;
+          }));
+          semanticEdges = links
+            .filter((link) => link?.sourceId && link?.targetId && link.sourceId !== link.targetId)
+            .filter((link) => !existing.has([link.sourceId, link.targetId].sort().join('::')))
+            .map((link, idx) => ({
+              id: `semantic-${link.sourceId}-${link.targetId}-${idx}`,
+              source: link.sourceId,
+              target: link.targetId,
+              label: `${Math.round((link.score || 0) * 100)}% semantic`,
+              style: {
+                stroke: '#14b8a6',
+                strokeWidth: 1.7,
+                strokeDasharray: '4,4'
+              },
+              markerEnd: { type: MarkerType.ArrowClosed, color: '#14b8a6' },
+              animated: false
+            }));
+        } catch {
+          semanticEdges = [];
+        }
+      }
+
+      if (cancelled) return;
+      const mergedEdges = [...rawEdges, ...semanticEdges];
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(rawNodes, mergedEdges);
+      setNodes(layoutedNodes);
+      setEdges(layoutedEdges);
+    };
+
+    applyGraph();
+    return () => { cancelled = true; };
+  }, [pillars, projectId, setNodes, setEdges]);
 
   const onNodeClick = useCallback((event, node) => {
     if (onSelectDecision) {
@@ -88,7 +126,7 @@ const GraphView = ({ pillars, onSelectDecision }) => {
       <div style={{ position: 'absolute', top: '15px', left: '20px', zIndex: 5, pointerEvents: 'none' }}>
         <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>Decision Topology</h3>
         <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
-            {nodes.length > 0 ? `Interactive visualization of ${nodes.length} decisions` : 'Generating graph...'}
+            {nodes.length > 0 ? `Interactive visualization of ${nodes.length} decisions (structural + semantic)` : 'Generating graph...'}
         </p>
       </div>
       <ReactFlow

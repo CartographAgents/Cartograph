@@ -9,7 +9,6 @@ const SendIcon = () => (
 
 export default function ChatInterface({ messages, onSendMessage, isWaiting, focusTrigger = 0 }) {
     const [input, setInput] = useState('');
-    const [expandedArtifacts, setExpandedArtifacts] = useState({});
     const bottomRef = useRef(null);
     const inputRef = useRef(null);
 
@@ -69,24 +68,43 @@ export default function ChatInterface({ messages, onSendMessage, isWaiting, focu
 
     const renderArtifact = (artifact, messageIndex) => {
         if (!artifact || artifact.type !== 'adaptive_card' || !artifact.json) return null;
-        const isExpanded = !!expandedArtifacts[messageIndex];
         const body = Array.isArray(artifact.json.body) ? artifact.json.body : [];
+        const actions = Array.isArray(artifact.json.actions) ? artifact.json.actions : [];
+
+        const handleAction = (action) => {
+            if (!action || typeof action !== 'object') return;
+            if (action.type === 'Action.OpenUrl' && action.url && typeof window !== 'undefined' && typeof window.open === 'function') {
+                window.open(action.url, '_blank', 'noopener,noreferrer');
+                return;
+            }
+
+            // Default to submitting a quick follow-up to the agent.
+            const fallback = action.title || '';
+            const dataValue = action.data && typeof action.data === 'object'
+                ? (action.data.prompt || action.data.message || fallback || JSON.stringify(action.data))
+                : fallback;
+            const payload = String(dataValue || '').trim();
+            if (payload) onSendMessage(payload);
+        };
 
         return (
             <div className="artifact-block">
-                <div className="artifact-title-row">
-                    <div className="artifact-title">Artifact: Adaptive Card</div>
-                    <button
-                        className="artifact-toggle"
-                        onClick={() => setExpandedArtifacts((current) => ({ ...current, [messageIndex]: !isExpanded }))}
-                    >
-                        {isExpanded ? 'Hide JSON' : 'View JSON'}
-                    </button>
-                </div>
                 <div className="artifact-preview">
                     {body.length > 0 ? body.map((item, i) => renderAdaptiveBodyItem(item, i)) : <p style={{ margin: 0 }}>No card body provided.</p>}
                 </div>
-                {isExpanded && <pre>{JSON.stringify(artifact.json, null, 2)}</pre>}
+                {actions.length > 0 && (
+                    <div className="artifact-actions">
+                        {actions.map((action, idx) => (
+                            <button
+                                key={`${messageIndex}-action-${idx}`}
+                                className="artifact-action-btn"
+                                onClick={() => handleAction(action)}
+                            >
+                                {action.title || `Action ${idx + 1}`}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
         );
     };
@@ -159,34 +177,26 @@ export default function ChatInterface({ messages, onSendMessage, isWaiting, focu
                     background: rgba(15, 23, 42, 0.08);
                     padding: 0.6rem;
                 }
-                .artifact-title-row {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    gap: 0.5rem;
-                    margin-bottom: 0.45rem;
-                }
-                .artifact-title {
-                    font-size: 0.75rem;
-                    font-weight: 700;
-                    text-transform: uppercase;
-                    letter-spacing: 0.04em;
-                    opacity: 0.8;
-                }
-                .artifact-toggle {
-                    border: 1px solid rgba(59, 130, 246, 0.35);
-                    background: rgba(59, 130, 246, 0.12);
-                    color: inherit;
-                    font-size: 0.72rem;
-                    border-radius: 6px;
-                    padding: 0.15rem 0.45rem;
-                    cursor: pointer;
-                }
                 .artifact-preview {
                     display: flex;
                     flex-direction: column;
                     gap: 0.5rem;
                     margin-bottom: 0.35rem;
+                }
+                .artifact-actions {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 0.4rem;
+                    margin-top: 0.25rem;
+                }
+                .artifact-action-btn {
+                    border: 1px solid rgba(59, 130, 246, 0.35);
+                    background: rgba(59, 130, 246, 0.12);
+                    color: inherit;
+                    font-size: 0.76rem;
+                    border-radius: 6px;
+                    padding: 0.2rem 0.5rem;
+                    cursor: pointer;
                 }
                 .artifact-facts {
                     border: 1px solid rgba(255,255,255,0.12);
@@ -208,13 +218,6 @@ export default function ChatInterface({ messages, onSendMessage, isWaiting, focu
                 }
                 .artifact-fact-value {
                     opacity: 0.95;
-                }
-                .artifact-block pre {
-                    margin: 0;
-                    white-space: pre-wrap;
-                    word-break: break-word;
-                    font-size: 0.78rem;
-                    line-height: 1.35;
                 }
             `}</style>
         </div>

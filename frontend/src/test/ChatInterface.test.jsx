@@ -45,7 +45,7 @@ describe('ChatInterface', () => {
         // If it was rendered as HTML, getByText wouldn't find the raw script tags as text
     });
 
-    it('renders adaptive card artifact JSON when present', () => {
+    it('renders adaptive card artifact content without metadata chrome', () => {
         const messages = [
             {
                 role: 'agent',
@@ -62,9 +62,9 @@ describe('ChatInterface', () => {
         ];
 
         render(<ChatInterface messages={messages} onSendMessage={() => {}} isWaiting={false} />);
-        expect(screen.getByText('Artifact: Adaptive Card')).toBeInTheDocument();
         expect(screen.getByText('Choose datastore')).toBeInTheDocument();
-        expect(screen.getByText('View JSON')).toBeInTheDocument();
+        expect(screen.queryByText('Artifact: Adaptive Card')).not.toBeInTheDocument();
+        expect(screen.queryByText('View JSON')).not.toBeInTheDocument();
     });
 
     it('focuses the prompt input when focusTrigger changes', () => {

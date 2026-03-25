@@ -120,10 +120,17 @@ const sanitizeAgentReply = (reply, { updatedDecisionsCount = 0 } = {}) => {
   }
 
   // Keep the conversation focused: at most one clarifying question in a turn.
+  // Preserve the full response content by converting extra '?' to '.' instead of truncating.
   const questionMarkCount = (nextReply.match(/\?/g) || []).length;
   if (questionMarkCount > 1) {
-    const firstQuestionIdx = nextReply.indexOf('?');
-    nextReply = nextReply.slice(0, firstQuestionIdx + 1).trim();
+    let seenQuestion = false;
+    nextReply = nextReply.replace(/\?/g, () => {
+      if (!seenQuestion) {
+        seenQuestion = true;
+        return '?';
+      }
+      return '.';
+    });
   }
 
   return nextReply;

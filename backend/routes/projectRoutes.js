@@ -8,7 +8,7 @@ const {
     getDecisionGraph 
 } = require('../services/projectService');
 const { getProjectClusters } = require('../services/clusteringService');
-const { getDecisionSemanticNeighbors } = require('../services/semanticService');
+const { getDecisionSemanticNeighbors, getProjectSemanticLinks } = require('../services/semanticService');
 const { getDecisionSuggestions } = require('../services/decisionSuggestionService');
 
 // Get all projects
@@ -168,6 +168,19 @@ router.get('/projects/:id/decisions/:decisionId/semantic', async (req, res) => {
     try {
         const limit = Number(req.query.limit || 8);
         const result = await getDecisionSemanticNeighbors(req.params.id, req.params.decisionId, limit);
+        if (!result) return res.status(404).json({ error: 'Project not found' });
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get embedding-based semantic links for the project graph
+router.get('/projects/:id/semantic-links', async (req, res) => {
+    try {
+        const threshold = Number(req.query.threshold || 0.62);
+        const maxLinksPerDecision = Number(req.query.maxLinksPerDecision || 2);
+        const result = await getProjectSemanticLinks(req.params.id, { threshold, maxLinksPerDecision });
         if (!result) return res.status(404).json({ error: 'Project not found' });
         res.json(result);
     } catch (err) {

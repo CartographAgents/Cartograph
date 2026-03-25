@@ -127,11 +127,6 @@ const PillarNode = ({ node, activePillarId, activeDecisionId, onSelectPillar, on
                     ))}
                     {hasDecisionChildren && (
                         <div className={`sidebar-decision-section ${depth > 0 ? 'nested' : ''}`}>
-                            {depth > 0 && (
-                                <div className="sidebar-decision-section-title">
-                                    {String(node.title || '').toUpperCase()}
-                                </div>
-                            )}
                             {node.decisions?.map(decision => {
                                 const isDecisionActive = activeDecisionId === decision.id;
                                 return (
@@ -247,13 +242,6 @@ export default function Sidebar({ pillars, activePillarId, activeDecisionId, onS
                 }
                 .sidebar-decision-section.nested {
                     margin-top: 6px;
-                }
-                .sidebar-decision-section-title {
-                    font-size: 0.63rem;
-                    font-weight: 700;
-                    letter-spacing: 0.08em;
-                    color: #94a3b8;
-                    margin: 0.15rem 0 0.25rem 0;
                 }
                 .sidebar-decision-row {
                     border: none;

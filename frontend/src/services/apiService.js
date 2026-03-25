@@ -83,3 +83,13 @@ export const fetchDecisionSuggestions = async (projectId, decisionId, limit = 6)
     if (!response.ok) throw new Error(`Failed to fetch decision suggestions (Status ${response.status})`);
     return await response.json();
 };
+
+export const fetchProjectSemanticLinks = async (projectId, threshold = 0.62, maxLinksPerDecision = 2) => {
+    if (!projectId) return { links: [] };
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(
+        `${apiUrl}/api/projects/${projectId}/semantic-links?threshold=${threshold}&maxLinksPerDecision=${maxLinksPerDecision}`
+    );
+    if (!response.ok) throw new Error(`Failed to fetch project semantic links (Status ${response.status})`);
+    return await response.json();
+};

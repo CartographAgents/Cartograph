@@ -150,6 +150,77 @@ const getDecisionSemanticNeighbors = async (projectId, decisionId, limit = 8) =>
     return { decisionId, neighbors: scored.slice(0, Math.max(1, limit)) };
 };
 
+const getProjectSemanticLinks = async (projectId, { threshold = 0.62, maxLinksPerDecision = 2 } = {}) => {
+    const project = await Project.findByPk(projectId);
+    if (!project) return null;
+
+    const pillars = await Pillar.findAll({ where: { ProjectId: project.id } });
+    const pillarIds = pillars.map((pillar) => pillar.id);
+    if (pillarIds.length === 0) return { links: [] };
+
+    const decisions = await Decision.findAll({ where: { PillarId: pillarIds } });
+    if (decisions.length < 2) return { links: [] };
+
+    const providerConfig = await getEmbeddingProviderConfig();
+    const withEmbeddings = [];
+    for (const decision of decisions) {
+        const embedding = await ensureDecisionEmbedding(decision, providerConfig);
+        if (!embedding) continue;
+        withEmbeddings.push({
+            id: decision.decisionId,
+            question: decision.question,
+            embedding
+        });
+    }
+
+    if (withEmbeddings.length < 2) return { links: [] };
+
+    const candidateBySource = new Map();
+    for (let i = 0; i < withEmbeddings.length; i += 1) {
+        const source = withEmbeddings[i];
+        const candidates = [];
+        for (let j = 0; j < withEmbeddings.length; j += 1) {
+            if (i === j) continue;
+            const target = withEmbeddings[j];
+            const score = cosineSimilarity(source.embedding, target.embedding);
+            if (score >= threshold) {
+                candidates.push({
+                    sourceId: source.id,
+                    targetId: target.id,
+                    sourceQuestion: source.question,
+                    targetQuestion: target.question,
+                    score
+                });
+            }
+        }
+        candidates.sort((a, b) => b.score - a.score);
+        candidateBySource.set(source.id, candidates.slice(0, Math.max(1, maxLinksPerDecision)));
+    }
+
+    const unique = new Map();
+    candidateBySource.forEach((links) => {
+        links.forEach((link) => {
+            const [left, right] = [link.sourceId, link.targetId].sort();
+            const key = `${left}::${right}`;
+            const current = unique.get(key);
+            if (!current || link.score > current.score) {
+                unique.set(key, link);
+            }
+        });
+    });
+
+    return {
+        links: [...unique.values()]
+            .sort((a, b) => b.score - a.score)
+            .map((item) => ({
+                sourceId: item.sourceId,
+                targetId: item.targetId,
+                score: item.score
+            }))
+    };
+};
+
 module.exports = {
-    getDecisionSemanticNeighbors
+    getDecisionSemanticNeighbors,
+    getProjectSemanticLinks
 };

@@ -327,7 +327,8 @@ function App() {
           <div className="pillar-details-pane" style={{ flex: 1, overflowY: viewMode === 'graph' ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column' }}>
             {viewMode === 'graph' ? (
               <GraphView 
-                pillars={pillars} 
+                pillars={pillars}
+                projectId={projectId}
                 onSelectDecision={(pillarId, decisionId) => {
                   setActivePillarId(pillarId);
                   setActiveDecisionId(decisionId);

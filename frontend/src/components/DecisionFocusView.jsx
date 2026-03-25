@@ -36,12 +36,14 @@ export default function DecisionFocusView({
     const [isSuggestionsLoading, setIsSuggestionsLoading] = React.useState(false);
     const [suggestionsError, setSuggestionsError] = React.useState('');
     const [pendingSuggestion, setPendingSuggestion] = React.useState(null);
+    const [isHidingSuggestions, setIsHidingSuggestions] = React.useState(false);
     const allDecisions = React.useMemo(() => flattenAllDecisions(pillars), [pillars]);
 
     React.useEffect(() => {
         let cancelled = false;
         setEmbeddingSemanticMatches([]);
         setPendingSuggestion(null);
+        setIsHidingSuggestions(false);
         if (!projectId || !decisionId) return () => { cancelled = true; };
 
         fetchDecisionSemanticNeighbors(projectId, decisionId, 8)
@@ -88,8 +90,17 @@ export default function DecisionFocusView({
     const decision = target.decision;
     const isConflict = !!decision.conflict;
     const isResolved = !!decision.answer && !isConflict;
+    const shouldShowSuggestions = !decision.answer;
     const statusLabel = isConflict ? 'Conflict' : (isResolved ? 'Resolved' : 'Pending');
     const statusColor = isConflict ? '#ef4444' : (isResolved ? '#10b981' : '#f59e0b');
+    const handleConfirmSuggestion = (label) => {
+        setIsHidingSuggestions(true);
+        setTimeout(() => {
+            onApplyDecision?.(target.pillarId, decision.id, label);
+            setPendingSuggestion(null);
+            setIsHidingSuggestions(false);
+        }, 260);
+    };
 
     const relationTone = (impact) => {
         const normalizedScore = Number.isFinite(impact?.score)
@@ -248,7 +259,8 @@ export default function DecisionFocusView({
                     </ul>
                 </div>
 
-                <div style={{ marginTop: '0.8rem' }}>
+                {(shouldShowSuggestions || isHidingSuggestions) && (
+                <div className={`decision-suggestions-section ${isHidingSuggestions ? 'hiding' : ''}`} style={{ marginTop: '0.8rem' }}>
                     <h5 style={{ margin: '0 0 0.45rem 0', color: '#1f2937' }}>Suggested Decisions</h5>
                     <p style={{ margin: '0 0 0.5rem 0', opacity: 0.8, fontSize: '0.84rem' }}>
                         Click a suggestion, then confirm to apply it as the current decision.
@@ -282,13 +294,21 @@ export default function DecisionFocusView({
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                             {decisionSuggestions.map((suggestion, idx) => (
-                                <button
+                                <div
                                     key={`${suggestion.label}-${idx}`}
-                                    className={`btn-secondary decision-suggestion-card ${pendingSuggestion?.label === suggestion.label ? 'selected' : ''}`}
+                                    className={`decision-suggestion-card ${pendingSuggestion?.label === suggestion.label ? 'selected' : ''}`}
                                     style={{
                                         textAlign: 'left'
                                     }}
                                     onClick={() => setPendingSuggestion(suggestion)}
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            setPendingSuggestion(suggestion);
+                                        }
+                                    }}
                                     title={`Use suggestion: ${suggestion.label}`}
                                 >
                                     {idx === 0 && (
@@ -303,31 +323,39 @@ export default function DecisionFocusView({
                                     <div className="decision-suggestion-reason">
                                         {suggestion.reason}
                                     </div>
-                                </button>
+                                    {pendingSuggestion?.label === suggestion.label && (
+                                        <div className="decision-suggestion-confirm">
+                                            <span style={{ fontSize: '0.83rem', opacity: 0.86 }}>
+                                                Use this suggestion?
+                                            </span>
+                                            <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                                <button
+                                                    className="btn-secondary"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setPendingSuggestion(null);
+                                                    }}
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    className="btn-primary"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleConfirmSuggestion(suggestion.label);
+                                                    }}
+                                                >
+                                                    Confirm
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             ))}
                         </div>
                     )}
-
-                    {pendingSuggestion && (
-                        <div style={{ marginTop: '0.6rem', border: '1px solid rgba(16,185,129,0.32)', borderRadius: '10px', background: 'rgba(16,185,129,0.12)', padding: '0.55rem 0.65rem', display: 'flex', justifyContent: 'space-between', gap: '0.6rem', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.86rem' }}>
-                                Confirm decision: <strong>{pendingSuggestion.label}</strong>
-                            </span>
-                            <div style={{ display: 'flex', gap: '0.4rem' }}>
-                                <button className="btn-secondary" onClick={() => setPendingSuggestion(null)}>Cancel</button>
-                                <button
-                                    className="btn-primary"
-                                    onClick={() => {
-                                        onApplyDecision?.(target.pillarId, decision.id, pendingSuggestion.label);
-                                        setPendingSuggestion(null);
-                                    }}
-                                >
-                                    Confirm
-                                </button>
-                            </div>
-                        </div>
-                    )}
                 </div>
+                )}
             </section>
 
             <section style={{ marginTop: '1.1rem' }}>
@@ -457,6 +485,7 @@ export default function DecisionFocusView({
                     display: flex;
                     flex-direction: column;
                     align-items: flex-start;
+                    cursor: pointer;
                     border: 1px solid rgba(15,23,42,0.1);
                     background: rgba(255,255,255,0.72);
                     border-radius: 10px;
@@ -484,6 +513,29 @@ export default function DecisionFocusView({
                     font-size: 1.02rem;
                     line-height: 1.45;
                     color: #42556f;
+                }
+                .decision-suggestion-confirm {
+                    margin-top: 0.55rem;
+                    width: 100%;
+                    border-top: 1px solid rgba(59,130,246,0.2);
+                    padding-top: 0.5rem;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 0.6rem;
+                }
+                .decision-suggestions-section {
+                    transition: opacity 0.22s ease, transform 0.22s ease, max-height 0.26s ease;
+                    opacity: 1;
+                    transform: translateY(0);
+                    max-height: 1400px;
+                    overflow: hidden;
+                }
+                .decision-suggestions-section.hiding {
+                    opacity: 0;
+                    transform: translateY(-4px);
+                    max-height: 0;
+                    pointer-events: none;
                 }
                 @keyframes decisionSkeletonPulse {
                     0% { background-position: 200% 0; }
