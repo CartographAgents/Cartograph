@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import DynamicIcon from './common/DynamicIcon';
+import { buildFeatureHierarchy } from '../utils/featureNormalization';
 
 const ChevronRight = () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -72,6 +73,77 @@ const toBriefTitle = (question = '') => {
     return toTitleCase(`${compact}${words.length > 3 ? '...' : ''}`);
 };
 
+const DecisionLink = ({ decision, label, activeDecisionId, onSelectDecision, nodeId, className = '' }) => {
+    const isDecisionActive = activeDecisionId === decision.id;
+    return (
+        <button
+            key={decision.id}
+            className={`sidebar-decision-row ${isDecisionActive ? 'active' : ''} ${className}`}
+            onClick={() => onSelectDecision?.(nodeId, decision.id)}
+            title={decision.question}
+        >
+            <div
+                className={`priority-dot ${(decision.priority || 'P1').toLowerCase()}`}
+                style={{
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    flexShrink: 0,
+                    background: decision.conflict ? '#ef4444' : (decision.answer ? '#10b981' : '#f59e0b')
+                }}
+            />
+            <span className="sidebar-decision-label">{label || decision.question}</span>
+        </button>
+    );
+};
+
+const FeatureHierarchySidebar = ({ decisions, activeDecisionId, onSelectDecision, nodeId }) => {
+    const epics = buildFeatureHierarchy(decisions);
+    return (
+        <div className="sidebar-decision-section nested">
+            {epics.map((epicNode) => (
+                <div key={epicNode.epic.id} className="sidebar-feature-epic-group">
+                    {!epicNode.epic.__virtual && (
+                        <DecisionLink
+                            decision={epicNode.epic}
+                            label={toBriefTitle(epicNode.epic.question)}
+                            activeDecisionId={activeDecisionId}
+                            onSelectDecision={onSelectDecision}
+                            nodeId={nodeId}
+                            className="epic-row"
+                        />
+                    )}
+                    {epicNode.features.map((featureNode) => (
+                        <div key={featureNode.feature.id} className="sidebar-feature-feature-group">
+                            {!featureNode.feature.__virtual && (
+                                <DecisionLink
+                                    decision={featureNode.feature}
+                                    label={toBriefTitle(featureNode.feature.question)}
+                                    activeDecisionId={activeDecisionId}
+                                    onSelectDecision={onSelectDecision}
+                                    nodeId={nodeId}
+                                    className="feature-row"
+                                />
+                            )}
+                            {featureNode.tasks.map((task) => (
+                                <DecisionLink
+                                    key={task.id}
+                                    decision={task}
+                                    label={toBriefTitle(task.question)}
+                                    activeDecisionId={activeDecisionId}
+                                    onSelectDecision={onSelectDecision}
+                                    nodeId={nodeId}
+                                    className="task-row"
+                                />
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            ))}
+        </div>
+    );
+};
+
 const PillarNode = ({ node, activePillarId, activeDecisionId, onSelectPillar, onSelectDecision, depth = 0 }) => {
     const [isExpanded, setIsExpanded] = useState(depth === 0);
     const hasSubcategories = node.subcategories && node.subcategories.length > 0;
@@ -127,33 +199,25 @@ const PillarNode = ({ node, activePillarId, activeDecisionId, onSelectPillar, on
                     ))}
                     {hasDecisionChildren && (
                         <div className={`sidebar-decision-section ${depth > 0 ? 'nested' : ''}`}>
-                            {node.decisions?.map(decision => {
-                                const isDecisionActive = activeDecisionId === decision.id;
-                                return (
-                                    <button
+                            {node.id === 'pillar-features' ? (
+                                <FeatureHierarchySidebar
+                                    decisions={node.decisions || []}
+                                    activeDecisionId={activeDecisionId}
+                                    onSelectDecision={onSelectDecision}
+                                    nodeId={node.id}
+                                />
+                            ) : (
+                                node.decisions?.map(decision => (
+                                    <DecisionLink
                                         key={decision.id}
-                                        className={`sidebar-decision-row ${isDecisionActive ? 'active' : ''}`}
-                                        onClick={() => onSelectDecision?.(node.id, decision.id)}
-                                        title={decision.question}
-                                    >
-                                        <div
-                                            className={`priority-dot ${(decision.priority || 'P1').toLowerCase()}`}
-                                            style={{
-                                                width: '7px',
-                                                height: '7px',
-                                                borderRadius: '50%',
-                                                flexShrink: 0,
-                                                background: decision.conflict
-                                                    ? '#ef4444'
-                                                    : (decision.answer ? '#10b981' : '#f59e0b')
-                                            }}
-                                        />
-                                        <span className="sidebar-decision-label">
-                                            {depth >= 1 ? toBriefTitle(decision.question) : decision.question}
-                                        </span>
-                                    </button>
-                                );
-                            })}
+                                        decision={decision}
+                                        label={depth >= 1 ? toBriefTitle(decision.question) : decision.question}
+                                        activeDecisionId={activeDecisionId}
+                                        onSelectDecision={onSelectDecision}
+                                        nodeId={node.id}
+                                    />
+                                ))
+                            )}
                         </div>
                     )}
                 </div>
@@ -276,6 +340,28 @@ export default function Sidebar({ pillars, activePillarId, activeDecisionId, onS
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                }
+                .sidebar-feature-epic-group {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 2px;
+                }
+                .sidebar-feature-feature-group {
+                    margin-left: 11px;
+                    padding-left: 8px;
+                    border-left: 1px solid rgba(148,163,184,0.24);
+                    display: flex;
+                    flex-direction: column;
+                    gap: 2px;
+                }
+                .sidebar-decision-row.epic-row .sidebar-decision-label {
+                    font-weight: 700;
+                }
+                .sidebar-decision-row.feature-row {
+                    margin-left: 1px;
+                }
+                .sidebar-decision-row.task-row {
+                    margin-left: 10px;
                 }
             `}</style>
         </aside>

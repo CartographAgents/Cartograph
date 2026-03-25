@@ -3,7 +3,7 @@ import { ConfigOption, CheckIcon, PendingIcon, WarningIcon } from './PillarCompo
 import { STANDARD_DECISIONS } from '../constants/architecture';
 import DynamicIcon from './common/DynamicIcon';
 import { VscAdd, VscTrash, VscEdit, VscCheck, VscClose, VscNote, VscPass, VscSettingsGear, VscListOrdered, VscReferences } from 'react-icons/vsc';
-import { normalizeFeatureDecision } from '../utils/featureNormalization';
+import { FEATURE_WORK_ITEM_TYPES, buildFeatureHierarchy, normalizeFeatureDecision } from '../utils/featureNormalization';
 import { getRelatedDecisionsForTarget } from '../utils/decisionRelations';
 
 const SubcategoriesList = ({ subcategories }) => {
@@ -91,7 +91,7 @@ const DecisionCard = ({ decision, index, onUpdateDecision, pillarId, isActive })
     );
 };
 
-const FeatureCard = ({ feature, onEdit, onDelete, pillarId, relatedDecisions = [], onJumpToDecision }) => {
+const FeatureCard = ({ feature, onEdit, onDelete, pillarId, relatedDecisions = [], onJumpToDecision, parentOptions = [], indentLevel = 0 }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState({ 
         question: feature.question, 
@@ -99,25 +99,38 @@ const FeatureCard = ({ feature, onEdit, onDelete, pillarId, relatedDecisions = [
         acceptance_criteria: Array.isArray(feature.acceptance_criteria) ? feature.acceptance_criteria.join('\n') : (feature.acceptance_criteria || ''),
         technical_context: feature.technical_context || '',
         dependencies: Array.isArray(feature.dependencies) ? feature.dependencies.join(', ') : (feature.dependencies || ''),
-        priority: feature.priority || 'P1'
+        priority: feature.priority || 'P1',
+        work_item_type: feature.work_item_type || 'feature',
+        parent_id: feature.parent_id || ''
     });
 
     const handleSave = () => {
         onEdit(pillarId, feature.id, {
             ...editValue,
             acceptance_criteria: editValue.acceptance_criteria.split('\n').filter(l => l.trim()),
-            dependencies: editValue.dependencies.split(',').map(d => d.trim()).filter(d => d)
+            dependencies: editValue.dependencies.split(',').map(d => d.trim()).filter(d => d),
+            parent_id: editValue.work_item_type === 'epic' ? null : (editValue.parent_id || null)
         });
         setIsEditing(false);
     };
 
     return (
-        <div className={`decision-card answered priority-${(feature.priority || 'P1').toLowerCase()}`}>
+        <div className={`decision-card answered priority-${(feature.priority || 'P1').toLowerCase()}`} style={{ marginLeft: `${indentLevel * 18}px` }}>
             <div className="decision-card-header" style={{ alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
                     {isEditing ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%' }}>
                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                <select
+                                    className="btn-secondary"
+                                    style={{ width: '110px', padding: '0.25rem' }}
+                                    value={editValue.work_item_type}
+                                    onChange={(e) => setEditValue({ ...editValue, work_item_type: e.target.value, parent_id: '' })}
+                                >
+                                    {FEATURE_WORK_ITEM_TYPES.map((type) => (
+                                        <option key={type} value={type}>{type}</option>
+                                    ))}
+                                </select>
                                 <select 
                                     className="btn-secondary" 
                                     style={{ width: '80px', padding: '0.25rem' }}
@@ -136,6 +149,23 @@ const FeatureCard = ({ feature, onEdit, onDelete, pillarId, relatedDecisions = [
                                     placeholder="Feature Name"
                                 />
                             </div>
+
+                            {editValue.work_item_type !== 'epic' && (
+                                <div className="edit-field">
+                                    <label>Parent</label>
+                                    <select
+                                        className="btn-secondary"
+                                        style={{ width: '100%', padding: '0.3rem' }}
+                                        value={editValue.parent_id}
+                                        onChange={(e) => setEditValue({ ...editValue, parent_id: e.target.value })}
+                                    >
+                                        <option value="">None</option>
+                                        {parentOptions.map((opt) => (
+                                            <option key={opt.id} value={opt.id}>{opt.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             
                             <div className="edit-field">
                                 <label><VscNote /> Description</label>
@@ -180,9 +210,15 @@ const FeatureCard = ({ feature, onEdit, onDelete, pillarId, relatedDecisions = [
                     ) : (
                         <div className="feature-view">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
+                                <span className="priority-badge" style={{ background: 'rgba(59,130,246,0.18)', color: '#1e40af' }}>
+                                    {(feature.work_item_type || 'feature').toUpperCase()}
+                                </span>
                                 <span className={`priority-badge ${(feature.priority || 'P1').toLowerCase()}`}>{feature.priority || 'P1'}</span>
                                 <h4 style={{ margin: 0 }}>{feature.question}</h4>
                             </div>
+                            {feature.parent_id && (
+                                <p style={{ margin: '0 0 0.35rem 0', opacity: 0.72, fontSize: '0.82rem' }}>Parent: {feature.parent_id}</p>
+                            )}
                             <p className="decision-context">{feature.context}</p>
                             
                             {feature.acceptance_criteria && Array.isArray(feature.acceptance_criteria) && feature.acceptance_criteria.length > 0 && (
@@ -329,7 +365,9 @@ export default function PillarWorkspace({
         acceptance_criteria: '',
         technical_context: '',
         dependencies: '',
-        priority: 'P1'
+        priority: 'P1',
+        work_item_type: 'feature',
+        parent_id: ''
     });
 
     if (!pillar) return null;
@@ -344,16 +382,30 @@ export default function PillarWorkspace({
         return map;
     }, [isFeatures, pillar.decisions, allPillars]);
 
+    const featureParentOptions = React.useMemo(() => {
+        if (!isFeatures) return [];
+        const normalized = (pillar.decisions || []).map((d) => normalizeFeatureDecision(d));
+        const epics = normalized.filter((d) => d.work_item_type === 'epic').map((d) => ({ id: d.id, label: `Epic: ${d.question}` }));
+        const features = normalized.filter((d) => d.work_item_type === 'feature').map((d) => ({ id: d.id, label: `Feature: ${d.question}` }));
+        return [...epics, ...features];
+    }, [isFeatures, pillar.decisions]);
+
+    const featureHierarchy = React.useMemo(() => {
+        if (!isFeatures) return [];
+        return buildFeatureHierarchy(pillar.decisions || []);
+    }, [isFeatures, pillar.decisions]);
+
     const handleAdd = () => {
         if (!newFeature.question) return;
         onAddFeature(pillar.id, { 
-            id: `feat_${Date.now()}`, 
             question: newFeature.question, 
             context: newFeature.context,
             acceptance_criteria: newFeature.acceptance_criteria.split('\n').filter(l => l.trim()),
             technical_context: newFeature.technical_context,
             dependencies: newFeature.dependencies.split(',').map(d => d.trim()).filter(d => d),
-            priority: newFeature.priority
+            priority: newFeature.priority,
+            work_item_type: newFeature.work_item_type,
+            parent_id: newFeature.work_item_type === 'epic' ? null : (newFeature.parent_id || null)
         });
         setNewFeature({ 
             question: '', 
@@ -361,7 +413,9 @@ export default function PillarWorkspace({
             acceptance_criteria: '',
             technical_context: '',
             dependencies: '',
-            priority: 'P1'
+            priority: 'P1',
+            work_item_type: 'feature',
+            parent_id: ''
         });
         setShowAddForm(false);
     };
@@ -394,6 +448,16 @@ export default function PillarWorkspace({
                     <div className="decision-card pending" style={{ marginBottom: '1rem', border: '1px dashed var(--accent-color)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                <select
+                                    className="btn-secondary"
+                                    style={{ width: '110px', padding: '0.25rem' }}
+                                    value={newFeature.work_item_type}
+                                    onChange={(e) => setNewFeature({ ...newFeature, work_item_type: e.target.value, parent_id: '' })}
+                                >
+                                    {FEATURE_WORK_ITEM_TYPES.map((type) => (
+                                        <option key={type} value={type}>{type}</option>
+                                    ))}
+                                </select>
                                 <select 
                                     className="btn-secondary" 
                                     style={{ width: '80px', padding: '0.25rem' }}
@@ -412,6 +476,23 @@ export default function PillarWorkspace({
                                     onChange={(e) => setNewFeature({ ...newFeature, question: e.target.value })}
                                 />
                             </div>
+
+                            {newFeature.work_item_type !== 'epic' && (
+                                <div className="edit-field">
+                                    <label>Parent</label>
+                                    <select
+                                        className="btn-secondary"
+                                        style={{ width: '100%', padding: '0.3rem' }}
+                                        value={newFeature.parent_id}
+                                        onChange={(e) => setNewFeature({ ...newFeature, parent_id: e.target.value })}
+                                    >
+                                        <option value="">None</option>
+                                        {featureParentOptions.map((opt) => (
+                                            <option key={opt.id} value={opt.id}>{opt.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
                             <div className="edit-field">
                                 <label><VscNote /> Description</label>
@@ -466,28 +547,72 @@ export default function PillarWorkspace({
                 )}
 
                 <div className="decision-list">
-                    {pillar.decisions?.map((d, i) => (
-                        isFeatures ? (
-                            <FeatureCard 
-                                key={d.id} 
-                                feature={normalizeFeatureDecision(d)} 
-                                pillarId={pillar.id}
-                                onEdit={onEditFeature}
-                                onDelete={onDeleteFeature}
-                                relatedDecisions={relatedByFeatureId[d.id] || []}
-                                onJumpToDecision={onJumpToDecision}
-                            />
-                        ) : (
-                            <DecisionCard 
-                                key={d.id} 
-                                decision={d} 
-                                index={i} 
-                                onUpdateDecision={onUpdateDecision} 
+                    {isFeatures ? (
+                        featureHierarchy.flatMap((epicNode) => {
+                            const cards = [];
+                            if (!epicNode.epic.__virtual) {
+                                cards.push(
+                                    <FeatureCard
+                                        key={epicNode.epic.id}
+                                        feature={normalizeFeatureDecision(epicNode.epic)}
+                                        pillarId={pillar.id}
+                                        onEdit={onEditFeature}
+                                        onDelete={onDeleteFeature}
+                                        relatedDecisions={relatedByFeatureId[epicNode.epic.id] || []}
+                                        onJumpToDecision={onJumpToDecision}
+                                        parentOptions={featureParentOptions}
+                                        indentLevel={0}
+                                    />
+                                );
+                            }
+
+                            epicNode.features.forEach((featureNode) => {
+                                if (!featureNode.feature.__virtual) {
+                                    cards.push(
+                                        <FeatureCard
+                                            key={featureNode.feature.id}
+                                            feature={normalizeFeatureDecision(featureNode.feature)}
+                                            pillarId={pillar.id}
+                                            onEdit={onEditFeature}
+                                            onDelete={onDeleteFeature}
+                                            relatedDecisions={relatedByFeatureId[featureNode.feature.id] || []}
+                                            onJumpToDecision={onJumpToDecision}
+                                            parentOptions={featureParentOptions}
+                                            indentLevel={1}
+                                        />
+                                    );
+                                }
+                                featureNode.tasks.forEach((task) => {
+                                    cards.push(
+                                        <FeatureCard
+                                            key={task.id}
+                                            feature={normalizeFeatureDecision(task)}
+                                            pillarId={pillar.id}
+                                            onEdit={onEditFeature}
+                                            onDelete={onDeleteFeature}
+                                            relatedDecisions={relatedByFeatureId[task.id] || []}
+                                            onJumpToDecision={onJumpToDecision}
+                                            parentOptions={featureParentOptions}
+                                            indentLevel={2}
+                                        />
+                                    );
+                                });
+                            });
+
+                            return cards;
+                        })
+                    ) : (
+                        pillar.decisions?.map((d, i) => (
+                            <DecisionCard
+                                key={d.id}
+                                decision={d}
+                                index={i}
+                                onUpdateDecision={onUpdateDecision}
                                 pillarId={pillar.id}
                                 isActive={d.id === activeDecisionId}
                             />
-                        )
-                    ))}
+                        ))
+                    )}
                 </div>
             </div>
         </div>

@@ -197,6 +197,9 @@ function App() {
         isOpen={isProjectsOpen}
         onSelectProject={handleSelectProject}
         onNewProject={() => {
+          if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+            window.history.pushState({}, '', '/');
+          }
           handleNewProject();
           setChatFocusTrigger((value) => value + 1);
         }}

@@ -27,7 +27,10 @@ export const SUBCATEGORY_SYSTEM_PROMPT = `You are a specialized Sub-Agent archit
 Analyze the user's application idea and generate the specific categories and pending architectural decisions required for your assigned pillar.
 
 If you are expanding a "Features" pillar (id: "pillar-features"), you MUST generate the primary functional components the user needs. 
-Each feature MUST be a decision object with these additional detailed fields for an AI coding agent:
+For "Features", you MUST model work items as a hierarchy using decision objects with:
+- "work_item_type": one of "epic" | "feature" | "task"
+- "parent_id": required for "feature" (points to an epic id) and for "task" (points to a feature id)
+Each work item MUST include these additional detailed fields for an AI coding agent:
 - "id": a unique feature ID (e.g. "feat_auth", "feat_dashboard")
 - "question": the name of the feature (e.g. "User Authentication")
 - "context": a short description of what the feature does.
@@ -36,6 +39,7 @@ Each feature MUST be a decision object with these additional detailed fields for
 - "dependencies": Array of feature IDs that this feature depends on.
 - "priority": "P0", "P1", or "P2".
 - "answer": set to "Included" by default.
+Ensure at least one "epic" exists before emitting child features/tasks.
 
 The initial decisions for OTHER pillars (like Frontend, Backend, etc) should ask VERY high-level, abstract questions that an architect needs to know to get started, thinking chronologically to build context.
 
@@ -96,6 +100,7 @@ Your job:
    - a feature decision under "pillar-features"
    - an API integration decision under the most relevant API/Backend category.
    - Any decision added to "pillar-features" MUST include: "acceptance_criteria" (array), "technical_context" (string), "dependencies" (array), and "priority" ("P0"|"P1"|"P2").
+   - Any decision added to "pillar-features" MUST also include "work_item_type" ("epic"|"feature"|"task") and "parent_id" for non-epic items.
 8. DECISION VELOCITY POLICY:
    - If user intent is clear, DO NOT ask for confirmation. Record the decision directly in "updatedDecisions".
    - Ask at most ONE clarifying question per turn, and only when ambiguity would materially change implementation.

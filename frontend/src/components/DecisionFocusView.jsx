@@ -78,16 +78,7 @@ export default function DecisionFocusView({
         return () => { cancelled = true; };
     }, [projectId, decisionId]);
 
-    if (!target) {
-        return (
-            <div className="glass-panel" style={{ padding: '1.25rem', height: '100%' }}>
-                <h2 style={{ marginTop: 0 }}>Decision Focus</h2>
-                <p>No decision selected. Choose a decision point to enter focus mode.</p>
-            </div>
-        );
-    }
-
-    const decision = target.decision;
+    const decision = target?.decision || {};
     const isConflict = !!decision.conflict;
     const isResolved = !!decision.answer && !isConflict;
     const shouldShowSuggestions = !decision.answer;
@@ -190,6 +181,15 @@ export default function DecisionFocusView({
                 : 'No downstream dependencies are currently registered.'
         ];
     }, [allDecisions, combinedImpacts, embeddingSemanticMatches]);
+
+    if (!target) {
+        return (
+            <div className="glass-panel" style={{ padding: '1.25rem', height: '100%' }}>
+                <h2 style={{ marginTop: 0 }}>Decision Focus</h2>
+                <p>No decision selected. Choose a decision point to enter focus mode.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="glass-panel decision-focus-shell" style={{ padding: '1.15rem 1.2rem', height: '100%', overflow: 'auto' }}>

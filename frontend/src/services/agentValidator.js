@@ -137,6 +137,18 @@ const validateDecisionNode = (node, path, contextLabel) => {
             assertNonEmptyString(link.type, `${linkPath}.type`, contextLabel);
         });
     }
+
+    if (node.work_item_type !== undefined && node.work_item_type !== null) {
+        const allowed = new Set(['epic', 'feature', 'task']);
+        const value = String(node.work_item_type).toLowerCase();
+        if (!allowed.has(value)) {
+            throw createSchemaError(contextLabel, `"${path}.work_item_type" must be one of epic|feature|task.`);
+        }
+        node.work_item_type = value;
+        if (value !== 'epic' && node.parent_id !== undefined && node.parent_id !== null) {
+            assertNonEmptyString(node.parent_id, `${path}.parent_id`, contextLabel);
+        }
+    }
 };
 
 export const validateCategoryNode = (node, path, contextLabel) => {
