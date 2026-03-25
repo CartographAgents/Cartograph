@@ -1,6 +1,9 @@
 process.env.NODE_ENV = 'test';
 process.env.DB_DIALECT = 'sqlite';
 process.env.DB_STORAGE = ':memory:';
+process.env.OPENAI_API_KEY = '';
+process.env.ANTHROPIC_API_KEY = '';
+process.env.GEMINI_API_KEY = '';
 
 const request = require('supertest');
 const { app, sequelize } = require('../../server');
@@ -65,6 +68,29 @@ describe('Backend integration: V2 planner contracts', () => {
         }));
     });
 
+    test('planner.v2.ground job endpoints provide progress snapshots', async () => {
+        const start = await request(app)
+            .post('/api/planner/v2/ground/jobs')
+            .send({
+                idea: 'Ground architecture for a Dataverse intake app with external users.',
+                config: { provider: 'mock' }
+            });
+
+        expect(start.status).toBe(202);
+        expect(typeof start.body.jobId).toBe('string');
+
+        const snapshot = await request(app)
+            .get(`/api/planner/v2/ground/jobs/${encodeURIComponent(start.body.jobId)}`);
+
+        expect(snapshot.status).toBe(200);
+        expect(snapshot.body).toEqual(expect.objectContaining({
+            jobId: start.body.jobId,
+            status: expect.any(String),
+            events: expect.any(Array)
+        }));
+        expect(['queued', 'running', 'completed', 'failed']).toContain(snapshot.body.status);
+    });
+
     test('intake.v2.assess requests discovery questions for vague prompts', async () => {
         const response = await request(app)
             .post('/api/intake/v2/assess')
@@ -82,6 +108,24 @@ describe('Backend integration: V2 planner contracts', () => {
         if (response.body.mode === 'requirements_discovery') {
             expect(response.body.questions.length).toBe(1);
         }
+    });
+
+    test('research.v1.query returns structured response even without live provider', async () => {
+        const response = await request(app)
+            .post('/api/research/v1/query')
+            .send({
+                query: 'What are key architecture concerns for a Dataverse model-driven app with external portal users?'
+            });
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual(expect.objectContaining({
+            agent: 'research',
+            summary: expect.any(String),
+            findings: expect.any(Array),
+            recommendations: expect.any(Array),
+            sources: expect.any(Array),
+            grounded_search_used: expect.any(Boolean)
+        }));
     });
 
     test('conflicts.v2.detect enforces resolved-only semantics', async () => {

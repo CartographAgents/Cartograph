@@ -8,9 +8,9 @@ import { findNodeById } from '../utils/treeUtils';
 import { fetchAppSettings, saveAppSettings } from '../services/apiService';
 
 const DEFAULT_MODELS = {
-  openai: { interactions: 'gpt-4o', planner: 'gpt-4o', suggestions: 'gpt-4o-mini', conflicts: 'gpt-4o' },
-  anthropic: { interactions: 'claude-3-5-sonnet-20240620', planner: 'claude-3-5-sonnet-20240620', suggestions: 'claude-3-5-sonnet-20240620', conflicts: 'claude-3-5-sonnet-20240620' },
-  gemini: { interactions: 'gemini-1.5-pro', planner: 'gemini-1.5-pro', suggestions: 'gemini-1.5-flash', conflicts: 'gemini-1.5-pro' }
+  openai: { interactions: 'gpt-4o', planner: 'gpt-4o', research: 'gpt-4o', suggestions: 'gpt-4o-mini', conflicts: 'gpt-4o' },
+  anthropic: { interactions: 'claude-3-5-sonnet-20240620', planner: 'claude-3-5-sonnet-20240620', research: 'claude-3-5-sonnet-20240620', suggestions: 'claude-3-5-sonnet-20240620', conflicts: 'claude-3-5-sonnet-20240620' },
+  gemini: { interactions: 'gemini-1.5-pro', planner: 'gemini-1.5-pro', research: 'gemini-1.5-pro', suggestions: 'gemini-1.5-flash', conflicts: 'gemini-1.5-pro' }
 };
 
 export function useAppLogic() {
@@ -20,7 +20,7 @@ export function useAppLogic() {
       role: 'agent',
       agentId: 'coordinator',
       agentLabel: 'Cartograph Coordinator',
-      content: "Hello! I'm your Cartograph team chat. Mention @pm for requirements discovery or @architect for design updates."
+      content: "Hello! I'm your Cartograph team chat. Mention @pm for discovery, @architect for design, or @research for web-grounded domain research."
     }
   ]);
   const [isWaiting, setIsWaiting] = useState(false);

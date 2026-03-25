@@ -15,7 +15,7 @@ const ArchiveIcon = () => (
     </svg>
 );
 
-export default function DeleteProjectModal({ projectTitle, onArchive, onDelete, onClose }) {
+export default function DeleteProjectModal({ projectTitle, onArchive, onDelete, onClose, isArchived = false }) {
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
@@ -25,23 +25,25 @@ export default function DeleteProjectModal({ projectTitle, onArchive, onDelete, 
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <button 
-                        className="btn-secondary" 
-                        onClick={onArchive}
-                        style={{ 
-                            justifyContent: 'flex-start', 
-                            padding: '1rem', 
-                            gap: '1rem',
-                            textAlign: 'left',
-                            background: 'rgba(255, 255, 255, 0.5)'
-                        }}
-                    >
-                        <div style={{ color: 'var(--accent-color)' }}><ArchiveIcon /></div>
-                        <div>
-                            <div style={{ fontWeight: 600 }}>Archive Project</div>
-                            <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>Move to archive. You can restore it later.</div>
-                        </div>
-                    </button>
+                    {!isArchived && (
+                        <button 
+                            className="btn-secondary" 
+                            onClick={onArchive}
+                            style={{ 
+                                justifyContent: 'flex-start', 
+                                padding: '1rem', 
+                                gap: '1rem',
+                                textAlign: 'left',
+                                background: 'rgba(255, 255, 255, 0.5)'
+                            }}
+                        >
+                            <div style={{ color: 'var(--accent-color)' }}><ArchiveIcon /></div>
+                            <div>
+                                <div style={{ fontWeight: 600 }}>Archive Project</div>
+                                <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>Move to archive. You can restore it later.</div>
+                            </div>
+                        </button>
+                    )}
 
                     <button 
                         className="btn-secondary" 

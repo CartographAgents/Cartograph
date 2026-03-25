@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchAllProjects, deleteProject, archiveProject } from '../services/apiService';
+import { fetchAllProjects, deleteProject, archiveProject, unarchiveProject } from '../services/apiService';
 import DeleteProjectModal from './DeleteProjectModal';
 
 const FolderIcon = () => (
@@ -17,13 +17,6 @@ const TrashIcon = () => (
     </svg>
 );
 
-const CloseIcon = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"></line>
-        <line x1="6" y1="6" x2="18" y2="18"></line>
-    </svg>
-);
-
 const PlusIcon = () => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -31,21 +24,37 @@ const PlusIcon = () => (
     </svg>
 );
 
+const ArchiveIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="21 8 21 21 3 21 3 8"></polyline>
+        <rect x="1" y="3" width="22" height="5"></rect>
+        <line x1="10" y1="12" x2="14" y2="12"></line>
+    </svg>
+);
+
+const RotateCcwIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="1 4 1 10 7 10"></polyline>
+        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+    </svg>
+);
+
 export default function ProjectsPanel({ onSelectProject, currentProjectId, isOpen, onToggle, onNewProject }) {
     const [projects, setProjects] = useState([]);
     const [loading, setLoading] = useState(true);
     const [projectToConfirm, setProjectToConfirm] = useState(null);
+    const [showArchived, setShowArchived] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             loadProjects();
         }
-    }, [isOpen]);
+    }, [isOpen, showArchived]);
 
     const loadProjects = async () => {
         setLoading(true);
         try {
-            const data = await fetchAllProjects();
+            const data = await fetchAllProjects(showArchived);
             setProjects(data);
         } catch (err) {
             console.error("Failed to load projects:", err);
@@ -70,6 +79,16 @@ export default function ProjectsPanel({ onSelectProject, currentProjectId, isOpe
         }
     };
 
+    const handleUnarchive = async (e, projectId) => {
+        e.stopPropagation();
+        try {
+            await unarchiveProject(projectId);
+            setProjects(projects.filter(p => p.id !== projectId));
+        } catch (err) {
+            alert("Failed to restore project: " + err.message);
+        }
+    };
+
     const handleDeletePermanent = async () => {
         if (!projectToConfirm) return;
         try {
@@ -85,7 +104,7 @@ export default function ProjectsPanel({ onSelectProject, currentProjectId, isOpe
         <div className="projects-sidebar-container">
             <div className="projects-tab-handle" onClick={onToggle}>
                 <FolderIcon />
-                <div className="tab-text">Projects</div>
+                <div className="tab-text">{showArchived ? 'Archived' : 'Projects'}</div>
             </div>
 
             <div className={`projects-sidebar ${!isOpen ? 'collapsed' : ''}`}>
@@ -98,7 +117,27 @@ export default function ProjectsPanel({ onSelectProject, currentProjectId, isOpe
                     gap: '0.75rem',
                     flexShrink: 0
                 }}>
-                    <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, whiteSpace: 'nowrap', opacity: 0.8 }}>Project History</h2>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, whiteSpace: 'nowrap', opacity: 0.8 }}>
+                            {showArchived ? 'Archive' : 'Projects'}
+                        </h2>
+                        <button 
+                            onClick={() => setShowArchived(!showArchived)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--accent-color)',
+                                fontSize: '0.75rem',
+                                padding: 0,
+                                textAlign: 'left',
+                                cursor: 'pointer',
+                                opacity: 0.7,
+                                textDecoration: 'underline'
+                            }}
+                        >
+                            {showArchived ? 'View Active' : 'View Archived'}
+                        </button>
+                    </div>
                     <button
                         className="btn-primary"
                         onClick={onNewProject}
@@ -128,7 +167,7 @@ export default function ProjectsPanel({ onSelectProject, currentProjectId, isOpe
                         <p style={{ textAlign: 'center', padding: '1rem', fontSize: '0.9rem', opacity: 0.6 }}>Loading...</p>
                     ) : projects.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.5, fontSize: '0.85rem' }}>
-                            <p>No project history found.</p>
+                            <p>{showArchived ? 'No archived projects.' : 'No active projects.'}</p>
                         </div>
                     ) : (
                         projects.map(p => (
@@ -164,26 +203,52 @@ export default function ProjectsPanel({ onSelectProject, currentProjectId, isOpe
                                         {new Date(p.createdAt).toLocaleDateString()}
                                     </span>
                                 </div>
-                                <button
-                                    className="btn-delete"
-                                    onClick={(e) => handleDeleteTrigger(e, p)}
-                                    style={{
-                                        position: 'absolute',
-                                        top: '0.4rem',
-                                        right: '0.4rem',
-                                        padding: '0.2rem',
-                                        background: 'transparent',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        color: '#ef4444',
-                                        opacity: 0.3,
-                                        transition: 'opacity 0.2s'
-                                    }}
-                                    onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
-                                    onMouseOut={(e) => e.currentTarget.style.opacity = '0.3'}
-                                >
-                                    <TrashIcon />
-                                </button>
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '0.4rem',
+                                    right: '0.4rem',
+                                    display: 'flex',
+                                    gap: '0.2rem'
+                                }}>
+                                    {showArchived && (
+                                        <button
+                                            className="btn-restore"
+                                            onClick={(e) => handleUnarchive(e, p.id)}
+                                            title="Restore Project"
+                                            style={{
+                                                padding: '0.2rem',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                color: 'var(--accent-color)',
+                                                opacity: 0.6,
+                                                transition: 'opacity 0.2s'
+                                            }}
+                                            onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+                                            onMouseOut={(e) => e.currentTarget.style.opacity = '0.6'}
+                                        >
+                                            <RotateCcwIcon />
+                                        </button>
+                                    )}
+                                    <button
+                                        className="btn-delete"
+                                        onClick={(e) => handleDeleteTrigger(e, p)}
+                                        title={showArchived ? "Delete Permanently" : "Archive/Delete"}
+                                        style={{
+                                            padding: '0.2rem',
+                                            background: 'transparent',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            color: '#ef4444',
+                                            opacity: 0.3,
+                                            transition: 'opacity 0.2s'
+                                        }}
+                                        onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+                                        onMouseOut={(e) => e.currentTarget.style.opacity = '0.3'}
+                                    >
+                                        <TrashIcon />
+                                    </button>
+                                </div>
                             </div>
                         ))
                     )}
@@ -195,6 +260,7 @@ export default function ProjectsPanel({ onSelectProject, currentProjectId, isOpe
                     projectTitle={projectToConfirm.idea}
                     onArchive={handleArchive}
                     onDelete={handleDeletePermanent}
+                    isArchived={showArchived}
                     onClose={() => setProjectToConfirm(null)}
                 />
             )}

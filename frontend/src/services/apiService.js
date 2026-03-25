@@ -57,6 +57,13 @@ export const archiveProject = async (id) => {
     return await response.json();
 };
 
+export const unarchiveProject = async (id) => {
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${apiUrl}/api/projects/${id}/unarchive`, { method: 'PUT' });
+    if (!response.ok) throw new Error(`Failed to unarchive project ${id} (Status ${response.status})`);
+    return await response.json();
+};
+
 export const fetchAppSettings = async () => {
     const apiUrl = import.meta.env.VITE_API_URL || '';
     const response = await fetch(`${apiUrl}/api/settings`);
@@ -112,6 +119,24 @@ export const groundPlannerV2 = async (idea, config = null) => {
     return await response.json();
 };
 
+export const startPlannerGroundingJob = async (idea, config = null) => {
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${apiUrl}/api/planner/v2/ground/jobs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea, config })
+    });
+    if (!response.ok) throw new Error(`Failed to start planner.v2 grounding job (Status ${response.status})`);
+    return await response.json();
+};
+
+export const fetchPlannerGroundingJob = async (jobId) => {
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${apiUrl}/api/planner/v2/ground/jobs/${encodeURIComponent(jobId)}`);
+    if (!response.ok) throw new Error(`Failed to fetch planner.v2 grounding job (Status ${response.status})`);
+    return await response.json();
+};
+
 export const generatePlannerV2 = async (idea, config = null, grounding = null, groundingMeta = null) => {
     const apiUrl = import.meta.env.VITE_API_URL || '';
     const response = await fetch(`${apiUrl}/api/planner/v2/generate`, {
@@ -137,6 +162,21 @@ export const assessIntakeV2 = async ({
         body: JSON.stringify({ idea, chatHistory, priorState, hasArchitecture, config })
     });
     if (!response.ok) throw new Error(`Failed to assess intake.v2 (Status ${response.status})`);
+    return await response.json();
+};
+
+export const runResearchQueryV1 = async ({
+    query,
+    context = null,
+    config = null
+} = {}) => {
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${apiUrl}/api/research/v1/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, context, config })
+    });
+    if (!response.ok) throw new Error(`Failed to run research.v1 query (Status ${response.status})`);
     return await response.json();
 };
 

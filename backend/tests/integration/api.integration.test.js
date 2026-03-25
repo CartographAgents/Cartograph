@@ -217,5 +217,6 @@ describe('Backend integration: persistence, rollback, and health', () => {
         expect(fetchSettings.status).toBe(200);
         expect(fetchSettings.body.provider).toBe('openai');
         expect(fetchSettings.body.keys.openai).toBe('sk-test');
+        expect(fetchSettings.body.models.openai.research).toBeTruthy();
     });
 });

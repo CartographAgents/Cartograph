@@ -19,7 +19,7 @@ export function useProjectManagement(state, setters) {
     role: 'agent',
     agentId: 'coordinator',
     agentLabel: 'Cartograph Coordinator',
-    content: "Hello! I'm your Cartograph team chat. Mention @pm for requirements discovery or @architect for design updates."
+    content: "Hello! I'm your Cartograph team chat. Mention @pm for discovery, @architect for design, or @research for web-grounded domain research."
   };
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export function useProjectManagement(state, setters) {
                 role: 'agent',
                 agentId: 'coordinator',
                 agentLabel: 'Cartograph Coordinator',
-                content: "I've restored your latest session. Mention @architect to continue solution design or @pm to refine requirements."
+                content: "I've restored your latest session. Mention @architect to continue solution design, @pm to refine requirements, or @research for domain checks."
               }
             ];
           setMessages(restoredMessages);
@@ -69,7 +69,7 @@ export function useProjectManagement(state, setters) {
         role: 'agent',
         agentId: 'coordinator',
         agentLabel: 'Cartograph Coordinator',
-        content: "New session started! Describe the application you want to build. You can mention @pm or @architect anytime."
+        content: "New session started! Describe the application you want to build. You can mention @pm, @architect, or @research anytime."
       }
     ]);
   };

@@ -16,6 +16,12 @@ const registry = {
         label: 'Architect Agent',
         handle: 'architect',
         aliases: ['architect', 'arch']
+    },
+    research: {
+        id: 'research',
+        label: 'Research Agent',
+        handle: 'research',
+        aliases: ['research', 'researcher', 'intel', 'r']
     }
 };
 

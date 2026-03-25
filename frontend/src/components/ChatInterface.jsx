@@ -284,7 +284,7 @@ export default function ChatInterface({ messages, onSendMessage, isWaiting, focu
                     ref={inputRef}
                     value={input}
                     onChange={e => setInput(e.target.value)}
-                    placeholder="Describe your architecture requirements... (use @pm or @architect)"
+                    placeholder="Describe your architecture requirements... (use @pm, @architect, or @research)"
                     rows="2"
                     onKeyDown={e => {
                         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }

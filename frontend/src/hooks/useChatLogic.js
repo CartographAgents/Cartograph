@@ -1,10 +1,18 @@
 import { processChatTurn } from '../services/agentService';
-import { saveStateToBackend, groundPlannerV2, generatePlannerV2, assessIntakeV2 } from '../services/apiService';
+import {
+  saveStateToBackend,
+  groundPlannerV2,
+  startPlannerGroundingJob,
+  fetchPlannerGroundingJob,
+  generatePlannerV2,
+  assessIntakeV2,
+  runResearchQueryV1
+} from '../services/apiService';
 import { addDecisionToPillar, findNodeById, updateNodeDecisions } from '../utils/treeUtils';
 import { normalizeFeatureDecision } from '../utils/featureNormalization';
 import { resolveDecisionInsertion } from '../utils/chatMutationRouting';
 import { detectActiveConflicts, clearAllDecisionConflicts } from '../services/conflictService';
-import { DEFAULT_AGENT_ID, getAgentById, resolveMentionedAgent } from '../agents/agentRegistry';
+import { DEFAULT_AGENT_ID, getAgentById, resolveMentionedAgent, listAgentMentions } from '../agents/agentRegistry';
 
 const decisionMatches = (decision, matcher) => {
   if (!decision) return false;
@@ -131,6 +139,48 @@ const flattenDecisionsFromPillars = (nodes = [], bucket = []) => {
   return bucket;
 };
 
+const buildResearchContextSnapshot = ({
+  idea = '',
+  latestUserMessage = '',
+  pillars = [],
+  v2State = {},
+  activePillarId = null,
+  activeDecisionId = null
+} = {}) => {
+  const decisions = flattenDecisionsFromPillars(pillars, []);
+  const resolvedCount = decisions.filter((decision) => {
+    const answer = decision?.answer;
+    return answer != null && String(answer).trim().length > 0;
+  }).length;
+
+  return {
+    idea: compactIdeaEcho(idea, 420),
+    latest_user_message: compactIdeaEcho(latestUserMessage, 420),
+    has_architecture: Array.isArray(pillars) && pillars.length > 0,
+    active_selection: {
+      pillar_id: activePillarId || null,
+      decision_id: activeDecisionId || null
+    },
+    project_shape: {
+      pillar_count: Array.isArray(pillars) ? pillars.length : 0,
+      decision_count: decisions.length,
+      resolved_decision_count: resolvedCount
+    },
+    domain_discovery: v2State?.domain_discovery
+      ? {
+        detected_ecosystem: v2State.domain_discovery.detected_ecosystem || '',
+        domain_summary: compactIdeaEcho(v2State.domain_discovery.domain_summary || '', 500),
+        platform_signals: Array.isArray(v2State.domain_discovery.platform_signals)
+          ? v2State.domain_discovery.platform_signals.slice(0, 10)
+          : [],
+        domain_primitives: Array.isArray(v2State.domain_discovery.domain_primitives)
+          ? v2State.domain_discovery.domain_primitives.slice(0, 12)
+          : []
+      }
+      : null
+  };
+};
+
 const syncV2StateWithPillars = (currentV2State = {}, updatedPillars = []) => {
   const next = cloneJson(currentV2State);
   const decisionsFromPillars = flattenDecisionsFromPillars(updatedPillars);
@@ -225,10 +275,39 @@ const createAgentMessage = (agentId, content, extra = {}) => {
   };
 };
 
-const shouldReopenDiscovery = (text = '') => {
-  const normalized = String(text || '').toLowerCase();
-  return /(start over|new project|new direction|pivot|re-scope|rescope|from scratch|reframe)/.test(normalized);
+const startActivityHeartbeat = ({
+  messageId,
+  patchMessage,
+  headline,
+  steps = [],
+  intervalMs = 7000,
+  initialDelayMs = 7000
+}) => {
+  const startedAt = Date.now();
+  let tick = 0;
+
+  const render = () => {
+    const elapsedSeconds = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
+    const detail = steps.length > 0
+      ? steps[tick % steps.length]
+      : 'Still working...';
+    patchMessage(messageId, {
+      status: 'working',
+      content: `${headline}\n${detail} (${elapsedSeconds}s elapsed)`
+    });
+    tick += 1;
+  };
+
+  const delayedFirst = setTimeout(render, initialDelayMs);
+  const interval = setInterval(render, intervalMs);
+
+  return () => {
+    clearTimeout(delayedFirst);
+    clearInterval(interval);
+  };
 };
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const buildInitialCompletionMessageV2 = (plan = {}, durationMs = 0) => {
   const capabilityCount = Array.isArray(plan?.capability_graph?.nodes) ? plan.capability_graph.nodes.length : 0;
@@ -256,7 +335,7 @@ const buildInitialCompletionMessageV2 = (plan = {}, durationMs = 0) => {
 };
 
 export function useChatLogic(state, setters) {
-  const { messages, pillars, projectId, llmConfig, v2State } = state;
+  const { messages, pillars, projectId, llmConfig, v2State, activePillarId, activeDecisionId } = state;
   const {
     setMessages,
     setPillars,
@@ -276,7 +355,7 @@ export function useChatLogic(state, setters) {
     if (mention.unknownHandle) {
       const unknownMentionReply = createAgentMessage(
         'coordinator',
-        `I don't recognize @${mention.unknownHandle}. Available agents: @pm and @architect.`
+        `I don't recognize @${mention.unknownHandle}. Available agents: ${listAgentMentions()}.`
       );
       setMessages([...messages, { role: 'user', content }, unknownMentionReply]);
       return;
@@ -285,7 +364,7 @@ export function useChatLogic(state, setters) {
     if (mention.agentId === 'coordinator') {
       const coordinatorReply = createAgentMessage(
         'coordinator',
-        'I can route this for you. Use @pm for requirements discovery and @architect for solution design.'
+        `I can route this for you. Mention one of: ${listAgentMentions()}.`
       );
       setMessages([...messages, { role: 'user', content }, coordinatorReply]);
       return;
@@ -322,6 +401,60 @@ export function useChatLogic(state, setters) {
 
   const handleInitialIdea = async (content, newMessages, preferredAgentId = null) => {
     const projectIdea = String(v2State?.idea || content || '').trim();
+
+    if (preferredAgentId === 'research') {
+      const research = await runResearchQueryV1({
+        query: content,
+        context: buildResearchContextSnapshot({
+          idea: projectIdea,
+          latestUserMessage: content,
+          pillars: [],
+          v2State,
+          activePillarId,
+          activeDecisionId
+        }),
+        config: llmConfig
+      });
+
+      const researchMessage = createAgentMessage(
+        'research',
+        research?.reply || 'Research completed.'
+      );
+      const nextMessages = [...newMessages, researchMessage];
+      const nextV2State = {
+        ...v2State,
+        idea: projectIdea,
+        planner_meta: {
+          ...(v2State?.planner_meta || {}),
+          lifecycle_stage: 'requirements_discovery'
+        },
+        research_last_result: research && typeof research === 'object'
+          ? {
+            summary: research.summary || '',
+            findings: Array.isArray(research.findings) ? research.findings : [],
+            sources: Array.isArray(research.sources) ? research.sources : [],
+            grounded_search_used: !!research.grounded_search_used
+          }
+          : null
+      };
+
+      setV2State(nextV2State);
+      setMessages(nextMessages);
+
+      const resultData = await saveStateToBackend(
+        projectIdea || content,
+        [],
+        projectId,
+        true,
+        nextMessages,
+        nextV2State
+      );
+      if (resultData?.projectId) setProjectId(resultData.projectId);
+      if (typeof resultData?.projectOverview === 'string') setProjectOverview(resultData.projectOverview);
+      if (resultData?.v2State && typeof resultData.v2State === 'object') setV2State(resultData.v2State);
+      return;
+    }
+
     const intakeState = await assessIntakeV2({
       idea: projectIdea,
       chatHistory: newMessages,
@@ -334,7 +467,7 @@ export function useChatLogic(state, setters) {
       const pmOnlyMessage = createAgentMessage(
         'pm',
         String(intakeState?.mode || '') === 'ready_for_architecture'
-          ? `${buildPmHandoffMessage(intakeState)}\n\nMention @architect when you want me to generate the capability and decision graph.`
+          ? `${buildPmHandoffMessage(intakeState)}\n\nMention @architect when you want me to generate the capability and decision graph, or @research to gather platform/domain references first.`
           : buildPmDiscoveryMessage(intakeState)
       );
       const nextMessages = [...newMessages, pmOnlyMessage];
@@ -477,7 +610,59 @@ export function useChatLogic(state, setters) {
     const plannerInput = intakeState?.handoff_brief
       ? `${projectIdea}\n\nProject Management Handoff Brief:\n${intakeState.handoff_brief}`
       : projectIdea;
-    const groundingStage = await groundPlannerV2(plannerInput, llmConfig);
+    let groundingStage;
+    try {
+      const groundingJob = await startPlannerGroundingJob(plannerInput, llmConfig);
+      const jobId = groundingJob?.jobId;
+      if (!jobId) {
+        throw new Error('Grounding job did not return a job id.');
+      }
+
+      const groundingStartedAt = Date.now();
+      let lastEventCount = 0;
+      let lastEventMessage = 'Grounding job started.';
+      const maxPollMs = 10 * 60 * 1000;
+
+      while (Date.now() - groundingStartedAt < maxPollMs) {
+        const snapshot = await fetchPlannerGroundingJob(jobId);
+        const events = Array.isArray(snapshot?.events) ? snapshot.events : [];
+        if (events.length > lastEventCount) {
+          const latest = events[events.length - 1];
+          lastEventMessage = String(latest?.message || lastEventMessage);
+          lastEventCount = events.length;
+        }
+
+        const elapsedSeconds = Math.max(1, Math.floor((Date.now() - groundingStartedAt) / 1000));
+        patchInitialAgentMessage(phaseMessages.grounding, {
+          status: 'working',
+          content: `Grounding in domain knowledge and platform references...\n${lastEventMessage} (${elapsedSeconds}s elapsed)`
+        });
+
+        if (snapshot?.status === 'completed') {
+          groundingStage = snapshot?.result || null;
+          break;
+        }
+        if (snapshot?.status === 'failed') {
+          throw new Error(snapshot?.error || 'Grounding job failed.');
+        }
+        await wait(1800);
+      }
+
+      if (!groundingStage) {
+        throw new Error('Grounding job timed out.');
+      }
+    } catch {
+    } finally {
+      // no-op: polling loop emits progress directly
+    }
+
+    if (!groundingStage?.grounding) {
+      patchInitialAgentMessage(phaseMessages.grounding, {
+        status: 'working',
+        content: 'Grounding job channel unavailable; switching to direct grounding request...'
+      });
+      groundingStage = await groundPlannerV2(plannerInput, llmConfig);
+    }
     const groundingSources = Number(groundingStage?.planner_meta?.sources_used || 0);
     const groundingPrimitives = Array.isArray(groundingStage?.grounding?.domain_primitives)
       ? groundingStage.grounding.domain_primitives.length
@@ -496,12 +681,27 @@ export function useChatLogic(state, setters) {
       status: 'working',
       content: 'Translating grounded findings into detected ecosystem and planning lenses...'
     });
-    const plan = await generatePlannerV2(
-      plannerInput,
-      llmConfig,
-      groundingStage?.grounding || null,
-      groundingStage?.planner_meta || null
-    );
+    const stopPlannerHeartbeat = startActivityHeartbeat({
+      messageId: planMessageId,
+      patchMessage: patchInitialAgentMessage,
+      headline: 'Grounding complete. Running downstream passes with grounded context: discovery + capability graph + decision synthesis + coverage audit + execution projection + artifact manifest.',
+      steps: [
+        'Running domain discovery and capability graph synthesis',
+        'Mapping decisions and performing coverage audit',
+        'Projecting execution artifacts and finalizing manifest'
+      ]
+    });
+    let plan;
+    try {
+      plan = await generatePlannerV2(
+        plannerInput,
+        llmConfig,
+        groundingStage?.grounding || null,
+        groundingStage?.planner_meta || null
+      );
+    } finally {
+      stopPlannerHeartbeat();
+    }
     const generatedPillars = Array.isArray(plan?.pillars) ? plan.pillars : [];
     const uncovered = Array.isArray(plan?.planner_meta?.uncovered_items) ? plan.planner_meta.uncovered_items.length : 0;
     const nextV2State = {
@@ -564,6 +764,59 @@ export function useChatLogic(state, setters) {
   const handleSubsequentTurn = async (newMessages, routedContent = '', preferredAgentId = null) => {
     const latestUserMessage = String(routedContent || newMessages?.[newMessages.length - 1]?.content || '');
 
+    if (preferredAgentId === 'research') {
+      const baseIdea = String(v2State?.idea || '').trim() || latestUserMessage;
+      const research = await runResearchQueryV1({
+        query: latestUserMessage,
+        context: buildResearchContextSnapshot({
+          idea: baseIdea,
+          latestUserMessage,
+          pillars,
+          v2State,
+          activePillarId,
+          activeDecisionId
+        }),
+        config: llmConfig
+      });
+
+      const researchMessage = createAgentMessage(
+        'research',
+        research?.reply || 'Research completed.'
+      );
+      const nextMessages = [...newMessages, researchMessage];
+      const nextV2State = {
+        ...v2State,
+        planner_meta: {
+          ...(v2State?.planner_meta || {}),
+          lifecycle_stage: pillars.length > 0 ? 'architecture_active' : 'requirements_discovery'
+        },
+        research_last_result: research && typeof research === 'object'
+          ? {
+            summary: research.summary || '',
+            findings: Array.isArray(research.findings) ? research.findings : [],
+            sources: Array.isArray(research.sources) ? research.sources : [],
+            grounded_search_used: !!research.grounded_search_used
+          }
+          : null
+      };
+
+      setV2State(nextV2State);
+      setMessages(nextMessages);
+
+      const resultData = await saveStateToBackend(
+        baseIdea,
+        pillars,
+        projectId,
+        true,
+        nextMessages,
+        nextV2State
+      );
+      if (resultData?.projectId) setProjectId(resultData.projectId);
+      if (typeof resultData?.projectOverview === 'string') setProjectOverview(resultData.projectOverview);
+      if (resultData?.v2State && typeof resultData.v2State === 'object') setV2State(resultData.v2State);
+      return;
+    }
+
     if (preferredAgentId === 'pm') {
       const intakeState = await assessIntakeV2({
         idea: latestUserMessage,
@@ -575,7 +828,7 @@ export function useChatLogic(state, setters) {
       const pmReply = createAgentMessage(
         'pm',
         String(intakeState?.mode || '') === 'ready_for_architecture'
-          ? `${buildPmHandoffMessage(intakeState)}\n\nMention @architect to continue architecture synthesis.`
+          ? `${buildPmHandoffMessage(intakeState)}\n\nMention @architect to continue architecture synthesis, or @research to gather external references first.`
           : buildPmDiscoveryMessage(intakeState)
       );
       const nextMessages = [...newMessages, pmReply];
@@ -607,44 +860,50 @@ export function useChatLogic(state, setters) {
       return;
     }
 
-    if (shouldReopenDiscovery(latestUserMessage)) {
-      const intakeState = await assessIntakeV2({
-        idea: latestUserMessage,
-        chatHistory: newMessages,
-        priorState: v2State?.intake_state || null,
-        hasArchitecture: true,
-        config: llmConfig
-      });
-      if (String(intakeState?.mode || '') !== 'ready_for_architecture') {
-        const pmMessage = createAgentMessage('pm', buildPmDiscoveryMessage(intakeState));
-        const nextMessages = [...newMessages, pmMessage];
-        const nextV2State = {
-          ...v2State,
-          intake_state: intakeState,
-          planner_meta: {
-            ...(v2State?.planner_meta || {}),
-            lifecycle_stage: 'requirements_discovery'
-          }
-        };
-        setV2State(nextV2State);
-        setMessages(nextMessages);
+    const intakeState = await assessIntakeV2({
+      idea: latestUserMessage,
+      chatHistory: newMessages,
+      priorState: v2State?.intake_state || null,
+      hasArchitecture: true,
+      config: llmConfig
+    });
+    if (String(intakeState?.mode || '') !== 'ready_for_architecture') {
+      const pmMessage = createAgentMessage('pm', buildPmDiscoveryMessage(intakeState));
+      const nextMessages = [...newMessages, pmMessage];
+      const nextV2State = {
+        ...v2State,
+        intake_state: intakeState,
+        planner_meta: {
+          ...(v2State?.planner_meta || {}),
+          lifecycle_stage: 'requirements_discovery'
+        }
+      };
+      setV2State(nextV2State);
+      setMessages(nextMessages);
 
-        const baseIdea = String(v2State?.idea || '').trim() || latestUserMessage;
-        const resultData = await saveStateToBackend(
-          baseIdea,
-          pillars,
-          projectId,
-          true,
-          nextMessages,
-          nextV2State
-        );
-        if (resultData?.projectId) setProjectId(resultData.projectId);
-        if (typeof resultData?.projectOverview === 'string') setProjectOverview(resultData.projectOverview);
-        if (resultData?.v2State && typeof resultData.v2State === 'object') setV2State(resultData.v2State);
-        return;
-      }
+      const baseIdea = String(v2State?.idea || '').trim() || latestUserMessage;
+      const resultData = await saveStateToBackend(
+        baseIdea,
+        pillars,
+        projectId,
+        true,
+        nextMessages,
+        nextV2State
+      );
+      if (resultData?.projectId) setProjectId(resultData.projectId);
+      if (typeof resultData?.projectOverview === 'string') setProjectOverview(resultData.projectOverview);
+      if (resultData?.v2State && typeof resultData.v2State === 'object') setV2State(resultData.v2State);
+      return;
     }
 
+    const turnContextV2State = {
+      ...v2State,
+      intake_state: intakeState,
+      planner_meta: {
+        ...(v2State?.planner_meta || {}),
+        lifecycle_stage: 'architecture_active'
+      }
+    };
     const routedHistory = [...newMessages];
     if (routedHistory.length > 0) {
       routedHistory[routedHistory.length - 1] = {
@@ -673,7 +932,7 @@ export function useChatLogic(state, setters) {
     if (result.updatedDecisions?.length > 0) {
       nextPillars = updateNodeDecisions(nextPillars, result.updatedDecisions, (d, update) => ({ ...d, answer: update.answer }));
     }
-    let nextV2State = syncV2StateWithPillars(v2State, nextPillars);
+    let nextV2State = syncV2StateWithPillars(turnContextV2State, nextPillars);
     const allConflicts = await detectActiveConflicts(nextPillars, llmConfig, {
       ...nextV2State,
       pillars: nextPillars

@@ -578,7 +578,7 @@ const runDomainGroundingPass = async ({ providerConfig, idea, fallback }) => {
         return { grounding: fallback, groundedSearchUsed: false, groundedSearchError: null };
     }
 
-    const model = getModelForTask(providerConfig.models, providerConfig.provider, 'planner');
+    const model = getModelForTask(providerConfig.models, providerConfig.provider, 'research');
     if (providerConfig.provider === 'openai') {
         try {
             const { completion, sources } = await agentService.requestProviderGroundedCompletion({
@@ -604,7 +604,7 @@ const runDomainGroundingPass = async ({ providerConfig, idea, fallback }) => {
         } catch (error) {
             const parsedFallback = await callPlannerPass(
                 providerConfig,
-                'planner',
+                'research',
                 systemPrompt,
                 userPrompt,
                 fallback,
@@ -620,7 +620,7 @@ const runDomainGroundingPass = async ({ providerConfig, idea, fallback }) => {
 
     const parsed = await callPlannerPass(
         providerConfig,
-        'planner',
+        'research',
         systemPrompt,
         userPrompt,
         fallback,

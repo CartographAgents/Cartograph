@@ -12,9 +12,11 @@ const { getDecisionSemanticNeighbors, getProjectSemanticLinks } = require('../se
 const { getDecisionSuggestions } = require('../services/decisionSuggestionService');
 const { assessIntakeV2 } = require('../services/intakeV2Service');
 const { groundPlannerV2, generatePlannerV2 } = require('../services/plannerV2Service');
+const { startGroundingJob, getGroundingJob } = require('../services/groundingJobService');
 const { detectConflictsV2, resolveConflictsV2 } = require('../services/conflictsV2Service');
 const { toExecutionProjection } = require('../services/projectionV2Service');
 const { buildExportBundleV2 } = require('../services/exportV2Service');
+const { runResearchAgentQuery } = require('../services/researchAgentService');
 // Get all projects
 router.get('/projects', async (req, res) => {
     try {
@@ -78,6 +80,20 @@ router.put('/projects/:id/archive', async (req, res) => {
     }
 });
 
+// Unarchive project
+router.put('/projects/:id/unarchive', async (req, res) => {
+    try {
+        const updated = await Project.update(
+            { archived: false },
+            { where: { id: req.params.id } }
+        );
+        if (!updated[0]) return res.status(404).json({ error: 'Project not found' });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Save project state (new or update)
 router.post('/save-state', async (req, res) => {
     try {
@@ -106,9 +122,9 @@ router.post('/save-state', async (req, res) => {
 router.get('/settings', async (req, res) => {
     try {
         const defaultModels = {
-            openai: { interactions: 'gpt-4o', planner: 'gpt-4o', suggestions: 'gpt-4o-mini', conflicts: 'gpt-4o' },
-            anthropic: { interactions: 'claude-3-5-sonnet-20240620', planner: 'claude-3-5-sonnet-20240620', suggestions: 'claude-3-5-sonnet-20240620', conflicts: 'claude-3-5-sonnet-20240620' },
-            gemini: { interactions: 'gemini-1.5-pro', planner: 'gemini-1.5-pro', suggestions: 'gemini-1.5-flash', conflicts: 'gemini-1.5-pro' }
+            openai: { interactions: 'gpt-4o', planner: 'gpt-4o', research: 'gpt-4o', suggestions: 'gpt-4o-mini', conflicts: 'gpt-4o' },
+            anthropic: { interactions: 'claude-3-5-sonnet-20240620', planner: 'claude-3-5-sonnet-20240620', research: 'claude-3-5-sonnet-20240620', suggestions: 'claude-3-5-sonnet-20240620', conflicts: 'claude-3-5-sonnet-20240620' },
+            gemini: { interactions: 'gemini-1.5-pro', planner: 'gemini-1.5-pro', research: 'gemini-1.5-pro', suggestions: 'gemini-1.5-flash', conflicts: 'gemini-1.5-pro' }
         };
         const [settings] = await AppSettings.findOrCreate({
             where: { singletonKey: 'global' },
@@ -133,9 +149,9 @@ router.get('/settings', async (req, res) => {
 router.put('/settings', async (req, res) => {
     try {
         const defaultModels = {
-            openai: { interactions: 'gpt-4o', planner: 'gpt-4o', suggestions: 'gpt-4o-mini', conflicts: 'gpt-4o' },
-            anthropic: { interactions: 'claude-3-5-sonnet-20240620', planner: 'claude-3-5-sonnet-20240620', suggestions: 'claude-3-5-sonnet-20240620', conflicts: 'claude-3-5-sonnet-20240620' },
-            gemini: { interactions: 'gemini-1.5-pro', planner: 'gemini-1.5-pro', suggestions: 'gemini-1.5-flash', conflicts: 'gemini-1.5-pro' }
+            openai: { interactions: 'gpt-4o', planner: 'gpt-4o', research: 'gpt-4o', suggestions: 'gpt-4o-mini', conflicts: 'gpt-4o' },
+            anthropic: { interactions: 'claude-3-5-sonnet-20240620', planner: 'claude-3-5-sonnet-20240620', research: 'claude-3-5-sonnet-20240620', suggestions: 'claude-3-5-sonnet-20240620', conflicts: 'claude-3-5-sonnet-20240620' },
+            gemini: { interactions: 'gemini-1.5-pro', planner: 'gemini-1.5-pro', research: 'gemini-1.5-pro', suggestions: 'gemini-1.5-flash', conflicts: 'gemini-1.5-pro' }
         };
         const provider = typeof req.body.provider === 'string' ? req.body.provider : 'mock';
         const keys = req.body.keys && typeof req.body.keys === 'object' ? req.body.keys : {};
@@ -248,6 +264,34 @@ router.post('/planner/v2/ground', async (req, res) => {
     }
 });
 
+// planner.v2.ground job start (for realtime progress polling)
+router.post('/planner/v2/ground/jobs', async (req, res) => {
+    try {
+        const idea = typeof req.body.idea === 'string' ? req.body.idea.trim() : '';
+        if (!idea) {
+            return res.status(400).json({ error: 'Missing or empty idea.' });
+        }
+        const runtimeConfig = req.body.config && typeof req.body.config === 'object' ? req.body.config : null;
+        const job = startGroundingJob({ idea, runtimeConfig });
+        res.status(202).json(job);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// planner.v2.ground job status
+router.get('/planner/v2/ground/jobs/:jobId', async (req, res) => {
+    try {
+        const job = getGroundingJob(req.params.jobId);
+        if (!job) {
+            return res.status(404).json({ error: 'Grounding job not found.' });
+        }
+        res.json(job);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // planner.v2.generate
 router.post('/planner/v2/generate', async (req, res) => {
     try {
@@ -284,6 +328,24 @@ router.post('/intake/v2/assess', async (req, res) => {
             hasArchitecture: !!req.body.hasArchitecture,
             runtimeConfig
         });
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// research.v1.query
+router.post('/research/v1/query', async (req, res) => {
+    try {
+        const query = typeof req.body.query === 'string' ? req.body.query.trim() : '';
+        if (!query) {
+            return res.status(400).json({ error: 'Missing or empty query.' });
+        }
+        const context = req.body.context && typeof req.body.context === 'object'
+            ? req.body.context
+            : null;
+        const runtimeConfig = req.body.config && typeof req.body.config === 'object' ? req.body.config : null;
+        const result = await runResearchAgentQuery({ query, context, runtimeConfig });
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
