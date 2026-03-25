@@ -39,8 +39,14 @@ const parseStructuredSuggestions = (raw) => {
 };
 
 const getProviderConfig = async () => {
+    const defaultModels = {
+        openai: { interactions: 'gpt-4o', suggestions: 'gpt-4o-mini', conflicts: 'gpt-4o' },
+        anthropic: { interactions: 'claude-3-5-sonnet-20240620', suggestions: 'claude-3-5-sonnet-20240620', conflicts: 'claude-3-5-sonnet-20240620' },
+        gemini: { interactions: 'gemini-1.5-pro', suggestions: 'gemini-1.5-flash', conflicts: 'gemini-1.5-pro' }
+    };
     const settings = await AppSettings.findOne({ where: { singletonKey: 'global' } });
-    const keys = settings?.keys && typeof settings.keys === 'object' ? settings.keys : {};
+    const rawKeys = settings?.keys && typeof settings.keys === 'object' ? settings.keys : {};
+    const { _models, ...keys } = rawKeys;
     const envHas = {
         openai: !!process.env.OPENAI_API_KEY,
         anthropic: !!process.env.ANTHROPIC_API_KEY,
@@ -52,13 +58,13 @@ const getProviderConfig = async () => {
         provider = envHas.openai ? 'openai' : (envHas.anthropic ? 'anthropic' : (envHas.gemini ? 'gemini' : null));
     }
 
-    return { provider, keys };
+    return { provider, keys, models: _models || defaultModels };
 };
 
-const buildPayload = (provider, systemPrompt, userPrompt) => {
+const buildPayload = (provider, systemPrompt, userPrompt, model) => {
     if (provider === 'openai') {
         return {
-            model: 'gpt-4o',
+            model: model || 'gpt-4o',
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
@@ -68,7 +74,7 @@ const buildPayload = (provider, systemPrompt, userPrompt) => {
     }
     if (provider === 'anthropic') {
         return {
-            model: 'claude-3-5-sonnet-20240620',
+            model: model || 'claude-3-5-sonnet-20240620',
             max_tokens: 800,
             system: systemPrompt,
             messages: [{ role: 'user', content: userPrompt }]
@@ -76,6 +82,7 @@ const buildPayload = (provider, systemPrompt, userPrompt) => {
     }
     if (provider === 'gemini') {
         return {
+            model: model || 'gemini-1.5-pro',
             systemInstruction: { parts: [{ text: systemPrompt }] },
             contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
             generationConfig: { responseMimeType: 'application/json' }
@@ -96,7 +103,7 @@ const getDecisionSuggestions = async (projectId, decisionId, limit = 6) => {
     const target = decisions.find((decision) => decision.decisionId === decisionId);
     if (!target) return { decisionId, suggestions: [] };
 
-    const { provider, keys } = await getProviderConfig();
+    const { provider, keys, models } = await getProviderConfig();
     if (!provider) {
         return { decisionId, suggestions: [] };
     }
@@ -132,7 +139,8 @@ const getDecisionSuggestions = async (projectId, decisionId, limit = 6) => {
         })))}`
     ].join('\n');
 
-    const payload = buildPayload(provider, systemPrompt, userPrompt);
+    const model = models?.[provider]?.suggestions || models?.[provider]?.interactions || null;
+    const payload = buildPayload(provider, systemPrompt, userPrompt, model);
     const { completion } = await agentService.requestProviderCompletion({
         provider,
         payload,
@@ -152,4 +160,3 @@ const getDecisionSuggestions = async (projectId, decisionId, limit = 6) => {
 module.exports = {
     getDecisionSuggestions
 };
-

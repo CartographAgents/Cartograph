@@ -7,6 +7,12 @@ import { generateBlueprintZip } from '../services/exportService';
 import { findNodeById } from '../utils/treeUtils';
 import { fetchAppSettings, saveAppSettings } from '../services/apiService';
 
+const DEFAULT_MODELS = {
+  openai: { interactions: 'gpt-4o', suggestions: 'gpt-4o-mini', conflicts: 'gpt-4o' },
+  anthropic: { interactions: 'claude-3-5-sonnet-20240620', suggestions: 'claude-3-5-sonnet-20240620', conflicts: 'claude-3-5-sonnet-20240620' },
+  gemini: { interactions: 'gemini-1.5-pro', suggestions: 'gemini-1.5-flash', conflicts: 'gemini-1.5-pro' }
+};
+
 export function useAppLogic() {
   // 1. Core State
   const [messages, setMessages] = useState([
@@ -25,7 +31,8 @@ export function useAppLogic() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [llmConfig, setLlmConfig] = useState({
     keys: { openai: '', anthropic: '', gemini: '' },
-    provider: 'mock'
+    provider: 'mock',
+    models: DEFAULT_MODELS
   });
 
   // 2. Logic Containers
@@ -54,7 +61,8 @@ export function useAppLogic() {
         if (isMounted) {
           setLlmConfig({
             provider: settings.provider || 'mock',
-            keys: settings.keys || { openai: '', anthropic: '', gemini: '' }
+            keys: settings.keys || { openai: '', anthropic: '', gemini: '' },
+            models: settings.models || DEFAULT_MODELS
           });
         }
       } catch (err) {
@@ -97,7 +105,8 @@ export function useAppLogic() {
       const saved = await saveAppSettings(config);
       setLlmConfig({
         provider: saved.provider || config.provider || 'mock',
-        keys: saved.keys || config.keys || { openai: '', anthropic: '', gemini: '' }
+        keys: saved.keys || config.keys || { openai: '', anthropic: '', gemini: '' },
+        models: saved.models || config.models || DEFAULT_MODELS
       });
     } catch (err) {
       setErrorMessage(err.message || 'Failed to save settings.');

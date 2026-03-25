@@ -1,14 +1,27 @@
 import React, { useState } from 'react';
 
+const DEFAULT_MODELS = {
+    openai: { interactions: 'gpt-4o', suggestions: 'gpt-4o-mini', conflicts: 'gpt-4o' },
+    anthropic: { interactions: 'claude-3-5-sonnet-20240620', suggestions: 'claude-3-5-sonnet-20240620', conflicts: 'claude-3-5-sonnet-20240620' },
+    gemini: { interactions: 'gemini-1.5-pro', suggestions: 'gemini-1.5-flash', conflicts: 'gemini-1.5-pro' }
+};
+
+const mergeModels = (current = {}) => ({
+    openai: { ...DEFAULT_MODELS.openai, ...(current.openai || {}) },
+    anthropic: { ...DEFAULT_MODELS.anthropic, ...(current.anthropic || {}) },
+    gemini: { ...DEFAULT_MODELS.gemini, ...(current.gemini || {}) }
+});
+
 export default function SettingsModal({ onClose, onSave, currentConfig }) {
     const [keys, setKeys] = useState(currentConfig?.keys || { openai: '', anthropic: '', gemini: '' });
     const [provider, setProvider] = useState(currentConfig?.provider || 'mock');
+    const [models, setModels] = useState(mergeModels(currentConfig?.models));
     const [isSaving, setIsSaving] = useState(false);
 
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await onSave({ keys, provider });
+            await onSave({ keys, provider, models });
             onClose();
         } finally {
             setIsSaving(false);
@@ -23,7 +36,16 @@ export default function SettingsModal({ onClose, onSave, currentConfig }) {
 
                 <div className="form-group">
                     <label>Active Provider</label>
-                    <select value={provider} onChange={e => setProvider(e.target.value)}>
+                    <select
+                        value={provider}
+                        onChange={e => {
+                            const nextProvider = e.target.value;
+                            setProvider(nextProvider);
+                            if (nextProvider !== 'mock') {
+                                setModels((prev) => mergeModels(prev));
+                            }
+                        }}
+                    >
                         <option value="mock">Mock Agent (Testing)</option>
                         <option value="openai">OpenAI</option>
                         <option value="anthropic">Anthropic Claude</option>
@@ -41,6 +63,53 @@ export default function SettingsModal({ onClose, onSave, currentConfig }) {
                             onChange={e => setKeys({ ...keys, [provider]: e.target.value })}
                         />
                     </div>
+                )}
+
+                {provider !== 'mock' && (
+                    <>
+                        <div className="form-group">
+                            <label>Interactions Model ({provider})</label>
+                            <input
+                                type="text"
+                                placeholder={DEFAULT_MODELS[provider]?.interactions || ''}
+                                value={models[provider]?.interactions || ''}
+                                onChange={e =>
+                                    setModels({
+                                        ...models,
+                                        [provider]: { ...(models[provider] || {}), interactions: e.target.value }
+                                    })
+                                }
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Suggested Decisions Model ({provider})</label>
+                            <input
+                                type="text"
+                                placeholder={DEFAULT_MODELS[provider]?.suggestions || ''}
+                                value={models[provider]?.suggestions || ''}
+                                onChange={e =>
+                                    setModels({
+                                        ...models,
+                                        [provider]: { ...(models[provider] || {}), suggestions: e.target.value }
+                                    })
+                                }
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Conflict Detection Model ({provider})</label>
+                            <input
+                                type="text"
+                                placeholder={DEFAULT_MODELS[provider]?.conflicts || ''}
+                                value={models[provider]?.conflicts || ''}
+                                onChange={e =>
+                                    setModels({
+                                        ...models,
+                                        [provider]: { ...(models[provider] || {}), conflicts: e.target.value }
+                                    })
+                                }
+                            />
+                        </div>
+                    </>
                 )}
 
                 <div className="modal-actions">

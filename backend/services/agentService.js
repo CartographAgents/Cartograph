@@ -126,13 +126,15 @@ const getAnthropicCompletion = async (keys, payload) => {
 };
 
 const getGeminiCompletion = async (keys, payload) => {
+    const model = payload?.model || 'gemini-1.5-pro';
+    const { model: _ignoredModel, ...requestPayload } = payload || {};
     const { data, latency_ms } = await callProviderApi({
         providerName: 'Gemini',
-        url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${keys.gemini}`,
+        url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys.gemini}`,
         requestInit: {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(requestPayload)
         }
     });
 

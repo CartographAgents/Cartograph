@@ -13,6 +13,19 @@ import {
     parseAndValidateProviderOutput 
 } from './agentValidator';
 
+const DEFAULT_MODELS = {
+    openai: { interactions: 'gpt-4o', suggestions: 'gpt-4o-mini', conflicts: 'gpt-4o' },
+    anthropic: { interactions: 'claude-3-5-sonnet-20240620', suggestions: 'claude-3-5-sonnet-20240620', conflicts: 'claude-3-5-sonnet-20240620' },
+    gemini: { interactions: 'gemini-1.5-pro', suggestions: 'gemini-1.5-flash', conflicts: 'gemini-1.5-pro' }
+};
+
+const getModelForTask = (config, task) => {
+    const provider = config?.provider || 'mock';
+    const configured = config?.models?.[provider] || {};
+    const defaults = DEFAULT_MODELS[provider] || {};
+    return configured[task] || configured.interactions || defaults[task] || defaults.interactions || null;
+};
+
 const requestProviderCompletion = async ({ provider, payload, keys }) => {
     const response = await fetch('/api/agent/complete', {
         method: 'POST',
@@ -32,13 +45,14 @@ const requestProviderCompletion = async ({ provider, payload, keys }) => {
 export const generatePillarsFromIdea = async (ideaDescription, config) => {
     const { provider, keys } = config;
     if (provider === 'mock') return mockGenerate();
+    const model = getModelForTask(config, 'interactions');
 
     const prompt = `Application Idea:\n${ideaDescription}`;
     
     let payload;
     if (provider === 'openai') {
         payload = {
-            model: 'gpt-4o',
+            model,
             messages: [
                 { role: 'system', content: SYSTEM_PROMPT + "\nRemember, return ONLY the raw JSON array." },
                 { role: 'user', content: prompt }
@@ -46,13 +60,14 @@ export const generatePillarsFromIdea = async (ideaDescription, config) => {
         };
     } else if (provider === 'anthropic') {
         payload = {
-            model: 'claude-3-5-sonnet-20240620',
+            model,
             max_tokens: 4000,
             system: SYSTEM_PROMPT,
             messages: [{ role: 'user', content: prompt }]
         };
     } else if (provider === 'gemini') {
         payload = {
+            model,
             systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: { responseMimeType: 'application/json' }
@@ -66,24 +81,26 @@ export const generatePillarsFromIdea = async (ideaDescription, config) => {
 export const generateCategoriesForPillar = async (ideaDescription, pillar, config) => {
     const { provider, keys } = config;
     if (provider === 'mock') return mockExpandPillar(ideaDescription, pillar);
+    const model = getModelForTask(config, 'interactions');
 
     const prompt = `Application Idea:\n${ideaDescription}\n\nAssigned Pillar to expand:\nID: ${pillar.id}\nTitle: ${pillar.title}\nDescription: ${pillar.description}`;
     
     let payload;
     if (provider === 'openai') {
         payload = {
-            model: 'gpt-4o',
+            model,
             messages: [{ role: 'system', content: SUBCATEGORY_SYSTEM_PROMPT }, { role: 'user', content: prompt }]
         };
     } else if (provider === 'anthropic') {
         payload = {
-            model: 'claude-3-5-sonnet-20240620',
+            model,
             max_tokens: 4000,
             system: SUBCATEGORY_SYSTEM_PROMPT,
             messages: [{ role: 'user', content: prompt }]
         };
     } else if (provider === 'gemini') {
         payload = {
+            model,
             systemInstruction: { parts: [{ text: SUBCATEGORY_SYSTEM_PROMPT }] },
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: { responseMimeType: 'application/json' }
@@ -111,6 +128,7 @@ const consolidateMessages = (messages) => {
 export const processChatTurn = async (chatHistory, currentPillars, config) => {
     const { provider, keys } = config;
     if (provider === 'mock') return mockChatTurn();
+    const model = getModelForTask(config, 'interactions');
 
     const userMsg = chatHistory[chatHistory.length - 1].content;
     const prompt = `Current Architecture State:\n${JSON.stringify(currentPillars, null, 2)}\n\nUser Message: ${userMsg}`;
@@ -123,18 +141,19 @@ export const processChatTurn = async (chatHistory, currentPillars, config) => {
     let payload;
     if (provider === 'openai') {
         payload = {
-            model: 'gpt-4o',
+            model,
             messages: [{ role: 'system', content: CHAT_SYSTEM_PROMPT }, ...history, { role: 'user', content: prompt }]
         };
     } else if (provider === 'anthropic') {
         payload = {
-            model: 'claude-3-5-sonnet-20240620',
+            model,
             max_tokens: 4000,
             system: CHAT_SYSTEM_PROMPT,
             messages: [...history, { role: 'user', content: prompt }]
         };
     } else if (provider === 'gemini') {
         payload = {
+            model,
             systemInstruction: { parts: [{ text: CHAT_SYSTEM_PROMPT }] },
             contents: [
                 ...history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
@@ -151,24 +170,26 @@ export const processChatTurn = async (chatHistory, currentPillars, config) => {
 export const analyzeArchitectureConsistency = async (currentPillars, config) => {
     const { provider, keys } = config;
     if (provider === 'mock') return { conflicts: [] };
+    const model = getModelForTask(config, 'conflicts');
 
     const prompt = `Current Architecture State:\n${JSON.stringify(currentPillars, null, 2)}\n\nIdentify cross-decision conflicts and return JSON only.`;
 
     let payload;
     if (provider === 'openai') {
         payload = {
-            model: 'gpt-4o',
+            model,
             messages: [{ role: 'system', content: CONSISTENCY_SYSTEM_PROMPT }, { role: 'user', content: prompt }]
         };
     } else if (provider === 'anthropic') {
         payload = {
-            model: 'claude-3-5-sonnet-20240620',
+            model,
             max_tokens: 3000,
             system: CONSISTENCY_SYSTEM_PROMPT,
             messages: [{ role: 'user', content: prompt }]
         };
     } else if (provider === 'gemini') {
         payload = {
+            model,
             systemInstruction: { parts: [{ text: CONSISTENCY_SYSTEM_PROMPT }] },
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: { responseMimeType: 'application/json' }

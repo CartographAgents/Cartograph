@@ -95,15 +95,26 @@ router.post('/save-state', async (req, res) => {
 // App settings (persisted server-side, no local-only storage)
 router.get('/settings', async (req, res) => {
     try {
+        const defaultModels = {
+            openai: { interactions: 'gpt-4o', suggestions: 'gpt-4o-mini', conflicts: 'gpt-4o' },
+            anthropic: { interactions: 'claude-3-5-sonnet-20240620', suggestions: 'claude-3-5-sonnet-20240620', conflicts: 'claude-3-5-sonnet-20240620' },
+            gemini: { interactions: 'gemini-1.5-pro', suggestions: 'gemini-1.5-flash', conflicts: 'gemini-1.5-pro' }
+        };
         const [settings] = await AppSettings.findOrCreate({
             where: { singletonKey: 'global' },
             defaults: {
                 singletonKey: 'global',
                 provider: 'mock',
-                keys: { openai: '', anthropic: '', gemini: '' }
+                keys: { openai: '', anthropic: '', gemini: '', _models: defaultModels }
             }
         });
-        res.json({ provider: settings.provider, keys: settings.keys || {} });
+        const rawKeys = settings.keys && typeof settings.keys === 'object' ? settings.keys : {};
+        const { _models, ...keys } = rawKeys;
+        res.json({
+            provider: settings.provider,
+            keys,
+            models: _models || defaultModels
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -111,14 +122,26 @@ router.get('/settings', async (req, res) => {
 
 router.put('/settings', async (req, res) => {
     try {
+        const defaultModels = {
+            openai: { interactions: 'gpt-4o', suggestions: 'gpt-4o-mini', conflicts: 'gpt-4o' },
+            anthropic: { interactions: 'claude-3-5-sonnet-20240620', suggestions: 'claude-3-5-sonnet-20240620', conflicts: 'claude-3-5-sonnet-20240620' },
+            gemini: { interactions: 'gemini-1.5-pro', suggestions: 'gemini-1.5-flash', conflicts: 'gemini-1.5-pro' }
+        };
         const provider = typeof req.body.provider === 'string' ? req.body.provider : 'mock';
         const keys = req.body.keys && typeof req.body.keys === 'object' ? req.body.keys : {};
+        const models = req.body.models && typeof req.body.models === 'object' ? req.body.models : defaultModels;
         const [settings] = await AppSettings.findOrCreate({
             where: { singletonKey: 'global' },
-            defaults: { singletonKey: 'global', provider, keys }
+            defaults: { singletonKey: 'global', provider, keys: { ...keys, _models: models } }
         });
-        await settings.update({ provider, keys });
-        res.json({ success: true, provider: settings.provider, keys: settings.keys || {} });
+        await settings.update({ provider, keys: { ...keys, _models: models } });
+        const { _models, ...publicKeys } = settings.keys || {};
+        res.json({
+            success: true,
+            provider: settings.provider,
+            keys: publicKeys,
+            models: _models || defaultModels
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
