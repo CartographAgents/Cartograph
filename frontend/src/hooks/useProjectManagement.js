@@ -10,9 +10,9 @@ export function useProjectManagement(state, setters) {
     setViewMode,
     setIsWaiting,
     setErrorMessage,
-    setIsProjectsOpen,
     setProjectId,
-    setProjectOverview
+    setProjectOverview,
+    setProjectName
   } = setters;
   const fallbackWelcome = { role: 'agent', content: "Hello! I'm your Cartograph Agent. Describe the application you want to build, and I'll generate the architectural pillars for us to work through." };
 
@@ -25,6 +25,7 @@ export function useProjectManagement(state, setters) {
           setProjectId(data.projectId);
           setPillars(data.pillars || []);
           setProjectOverview(typeof data.projectOverview === 'string' ? data.projectOverview : '');
+          setProjectName(data.idea ? data.idea.substring(0, 50) : '');
           const restoredMessages = Array.isArray(data.chatHistory) && data.chatHistory.length > 0
             ? data.chatHistory
             : [
@@ -41,7 +42,7 @@ export function useProjectManagement(state, setters) {
       }
     }
     hydrate();
-  }, [setIsWaiting, setMessages, setPillars, setProjectId, setProjectOverview]); // Only once on mount (setters are stable)
+  }, [setIsWaiting, setMessages, setPillars, setProjectId, setProjectOverview, setProjectName]); // Only once on mount (setters are stable)
 
   const handleNewProject = () => {
     setProjectId(null);
@@ -50,7 +51,7 @@ export function useProjectManagement(state, setters) {
     setActivePillarId(null);
     setActiveDecisionId(null);
     setViewMode('pillar');
-    setIsProjectsOpen(false);
+    setProjectName('');
     setMessages([
       { role: 'agent', content: "New session started! Describe the application you want to build." }
     ]);
@@ -58,13 +59,13 @@ export function useProjectManagement(state, setters) {
 
   const handleSelectProject = async (id) => {
     setIsWaiting(true);
-    setIsProjectsOpen(false);
     try {
       const data = await fetchProjectById(id);
       if (data) {
         setProjectId(data.projectId);
         setPillars(data.pillars || []);
         setProjectOverview(typeof data.projectOverview === 'string' ? data.projectOverview : '');
+        setProjectName(data.idea ? data.idea.substring(0, 50) : '');
         setActivePillarId(null);
         const restoredMessages = Array.isArray(data.chatHistory) && data.chatHistory.length > 0
           ? data.chatHistory

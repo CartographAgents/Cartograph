@@ -1,22 +1,15 @@
 import React from 'react';
+import { renderMessageContent } from '../utils/markdownRenderer';
 
 export default function ProjectOverview({ markdown }) {
     return (
-        <div className="glass-panel" style={{ height: '100%', overflow: 'auto', padding: '1rem 1.25rem' }}>
-            <h2 style={{ marginTop: 0 }}>Project Overview</h2>
-            <pre
-                style={{
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace',
-                    fontSize: '0.86rem',
-                    lineHeight: 1.45,
-                    margin: 0,
-                    color: 'var(--text-primary)'
-                }}
-            >
-                {markdown || 'Overview will appear here after the project is saved.'}
-            </pre>
+        <div className="glass-panel" style={{ height: '100%', overflow: 'auto', padding: '1.5rem' }}>
+            <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>Project Overview</h2>
+            <div className="markdown-body">
+                {markdown ? renderMessageContent(markdown) : (
+                    <p style={{ opacity: 0.6 }}>Overview will appear here after the project is saved.</p>
+                )}
+            </div>
         </div>
     );
 }

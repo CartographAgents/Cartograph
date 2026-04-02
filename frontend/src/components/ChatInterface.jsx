@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { renderMessageContent } from '../utils/markdownRenderer';
 
 const SendIcon = () => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -25,132 +26,6 @@ export default function ChatInterface({ messages, onSendMessage, isWaiting, focu
         if (!input.trim() || isWaiting) return;
         onSendMessage(input);
         setInput('');
-    };
-
-    const renderInlineMarkdown = (text, keyPrefix) => {
-        const safeText = typeof text === 'string' ? text : String(text ?? '');
-        const pattern = /(\[[^\]]+\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*|`([^`]+)`|\*([^*]+)\*)/g;
-        const parts = [];
-        let lastIndex = 0;
-        let match;
-        let idx = 0;
-
-        while ((match = pattern.exec(safeText)) !== null) {
-            if (match.index > lastIndex) {
-                parts.push(
-                    <React.Fragment key={`${keyPrefix}-text-${idx++}`}>
-                        {safeText.slice(lastIndex, match.index)}
-                    </React.Fragment>
-                );
-            }
-
-            if (match[2]) {
-                parts.push(
-                    <a
-                        key={`${keyPrefix}-link-${idx++}`}
-                        href={match[2]}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    >
-                        {match[1].slice(1, match[1].indexOf(']'))}
-                    </a>
-                );
-            } else if (match[3]) {
-                parts.push(<strong key={`${keyPrefix}-bold-${idx++}`}>{match[3]}</strong>);
-            } else if (match[4]) {
-                parts.push(<code key={`${keyPrefix}-code-${idx++}`}>{match[4]}</code>);
-            } else if (match[5]) {
-                parts.push(<em key={`${keyPrefix}-italic-${idx++}`}>{match[5]}</em>);
-            }
-
-            lastIndex = pattern.lastIndex;
-        }
-
-        if (lastIndex < safeText.length) {
-            parts.push(
-                <React.Fragment key={`${keyPrefix}-tail-${idx++}`}>
-                    {safeText.slice(lastIndex)}
-                </React.Fragment>
-            );
-        }
-
-        return parts.length > 0 ? parts : safeText;
-    };
-
-    const renderMessageContent = (content) => {
-        const safeContent = typeof content === 'string' ? content : String(content ?? '');
-        const lines = safeContent.split('\n');
-        const blocks = [];
-        let i = 0;
-        let key = 0;
-
-        while (i < lines.length) {
-            const line = lines[i];
-            const trimmed = line.trim();
-            if (!trimmed) {
-                i += 1;
-                continue;
-            }
-
-            if (/^\d+\.\s+/.test(trimmed)) {
-                const items = [];
-                while (i < lines.length) {
-                    const current = lines[i].trim();
-                    if (!current) {
-                        i += 1;
-                        continue;
-                    }
-                    if (!/^\d+\.\s+/.test(current)) break;
-                    items.push(current.replace(/^\d+\.\s+/, ''));
-                    i += 1;
-                }
-                blocks.push(
-                    <ol key={`md-ol-${key++}`}>
-                        {items.map((item, itemIdx) => (
-                            <li key={`md-ol-item-${itemIdx}`}>{renderInlineMarkdown(item, `md-ol-${key}-${itemIdx}`)}</li>
-                        ))}
-                    </ol>
-                );
-                continue;
-            }
-
-            if (/^[-*]\s+/.test(trimmed)) {
-                const items = [];
-                while (i < lines.length) {
-                    const current = lines[i].trim();
-                    if (!current) {
-                        i += 1;
-                        continue;
-                    }
-                    if (!/^[-*]\s+/.test(current)) break;
-                    items.push(current.replace(/^[-*]\s+/, ''));
-                    i += 1;
-                }
-                blocks.push(
-                    <ul key={`md-ul-${key++}`}>
-                        {items.map((item, itemIdx) => (
-                            <li key={`md-ul-item-${itemIdx}`}>{renderInlineMarkdown(item, `md-ul-${key}-${itemIdx}`)}</li>
-                        ))}
-                    </ul>
-                );
-                continue;
-            }
-
-            const paragraph = [];
-            while (i < lines.length) {
-                const next = lines[i].trim();
-                if (!next || /^\d+\.\s+/.test(next) || /^[-*]\s+/.test(next)) break;
-                paragraph.push(lines[i]);
-                i += 1;
-            }
-
-            const joined = paragraph.join(' ').replace(/\s+/g, ' ').trim();
-            if (joined) {
-                blocks.push(<p key={`md-p-${key++}`}>{renderInlineMarkdown(joined, `md-p-${key}`)}</p>);
-            }
-        }
-
-        return blocks.length > 0 ? blocks : safeContent;
     };
 
     const renderAdaptiveBodyItem = (item, idx) => {
@@ -300,9 +175,9 @@ export default function ChatInterface({ messages, onSendMessage, isWaiting, focu
                 }
                 .artifact-block {
                     margin-top: 0.75rem;
-                    border: 1px solid rgba(59, 130, 246, 0.25);
+                    border: 1px solid var(--accent-border);
                     border-radius: 8px;
-                    background: rgba(15, 23, 42, 0.08);
+                    background: var(--bg-tertiary);
                     padding: 0.6rem;
                 }
                 .artifact-preview {
@@ -318,8 +193,8 @@ export default function ChatInterface({ messages, onSendMessage, isWaiting, focu
                     margin-top: 0.25rem;
                 }
                 .artifact-action-btn {
-                    border: 1px solid rgba(59, 130, 246, 0.35);
-                    background: rgba(59, 130, 246, 0.12);
+                    border: 1px solid var(--accent-border);
+                    background: var(--accent-subtle);
                     color: inherit;
                     font-size: 0.76rem;
                     border-radius: 6px;
@@ -327,7 +202,7 @@ export default function ChatInterface({ messages, onSendMessage, isWaiting, focu
                     cursor: pointer;
                 }
                 .artifact-facts {
-                    border: 1px solid rgba(255,255,255,0.12);
+                    border: 1px solid var(--border-color);
                     border-radius: 6px;
                     padding: 0.45rem;
                     display: flex;
@@ -368,12 +243,12 @@ export default function ChatInterface({ messages, onSendMessage, isWaiting, focu
                     margin: 0;
                 }
                 .thinking-bubble {
-                    border: 1px dashed rgba(59, 130, 246, 0.45);
-                    background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.02));
+                    border: 1px dashed var(--accent-border);
+                    background: linear-gradient(135deg, var(--accent-subtle), transparent);
                 }
                 .thinking-completed-bubble {
-                    border: 1px solid rgba(16, 185, 129, 0.32);
-                    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(16, 185, 129, 0.02));
+                    border: 1px solid var(--color-resolved-border);
+                    background: linear-gradient(135deg, var(--color-resolved-bg), transparent);
                 }
                 .thinking-caption {
                     display: inline-flex;
@@ -383,7 +258,7 @@ export default function ChatInterface({ messages, onSendMessage, isWaiting, focu
                     font-weight: 700;
                     letter-spacing: 0.03em;
                     text-transform: uppercase;
-                    color: rgba(37, 99, 235, 0.95);
+                    color: var(--accent-color);
                     margin-bottom: 0.35rem;
                 }
                 .thinking-dot {

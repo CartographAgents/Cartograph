@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import DynamicIcon from './common/DynamicIcon';
 import { buildFeatureHierarchy } from '../utils/featureNormalization';
+import ProjectSwitcher from './ProjectSwitcher';
+import ProgressIndicator from './ProgressIndicator';
 
 const ChevronRight = () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -89,7 +91,7 @@ const DecisionLink = ({ decision, label, activeDecisionId, onSelectDecision, nod
                     height: '7px',
                     borderRadius: '50%',
                     flexShrink: 0,
-                    background: decision.conflict ? '#ef4444' : (decision.answer ? '#10b981' : '#f59e0b')
+                    background: decision.conflict ? 'var(--color-conflict)' : (decision.answer ? 'var(--color-resolved)' : 'var(--color-pending)')
                 }}
             />
             <span className="sidebar-decision-label">{label || decision.question}</span>
@@ -184,8 +186,8 @@ const PillarNode = ({ node, activePillarId, activeDecisionId, onSelectPillar, on
                     <span style={{ flex: 1, textAlign: 'left' }}>{node.title}</span>
                 </button>
             </div>
-            {isExpanded && hasChildren && (
-                <div className="pillar-children sidebar-children-group">
+            {hasChildren && (
+                <div className={`pillar-children sidebar-children-group ${isExpanded ? 'expanded' : 'collapsed'}`}>
                     {node.subcategories?.map(child => (
                         <PillarNode
                             key={child.id}
@@ -226,11 +228,22 @@ const PillarNode = ({ node, activePillarId, activeDecisionId, onSelectPillar, on
     );
 };
 
-export default function Sidebar({ pillars, activePillarId, activeDecisionId, onSelectPillar, onSelectDecision, onOpenSettings }) {
+export default function Sidebar({ pillars, activePillarId, activeDecisionId, onSelectPillar, onSelectDecision, onOpenSettings, currentProjectId, currentProjectName, onSelectProject, onNewProject, agentFeedback, onExport }) {
     return (
         <aside className="sidebar glass-panel" style={{ border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-xl)', display: 'flex', flexDirection: 'column' }}>
-            <div className="sidebar-header" style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)' }}>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>Cartograph</h2>
+            <div className="sidebar-header" style={{ padding: '1rem 1rem 0.75rem', borderBottom: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span className="sidebar-brand">Cartograph</span>
+                <button className="btn-secondary" onClick={onOpenSettings} style={{ padding: '0.4rem', fontSize: '0.8rem' }}>
+                    <SettingsIcon />
+                </button>
+            </div>
+            <div className="sidebar-project-switcher">
+                <ProjectSwitcher
+                    currentProjectId={currentProjectId}
+                    currentProjectName={currentProjectName}
+                    onSelectProject={onSelectProject}
+                    onNewProject={onNewProject}
+                />
             </div>
             <div className="sidebar-content" style={{ flex: 1, overflowY: 'auto' }}>
                 {pillars && pillars.length > 0 ? (
@@ -257,17 +270,10 @@ export default function Sidebar({ pillars, activePillarId, activeDecisionId, onS
                     </div>
                 )}
             </div>
-            <div className="sidebar-footer" style={{ padding: '1rem', borderTop: '1px solid var(--border-color)', background: 'rgba(241, 245, 249, 0.5)' }}>
-                <button className="btn-secondary" onClick={onOpenSettings} style={{ width: '100%', padding: '0.6rem', fontSize: '0.85rem' }}>
-                    <SettingsIcon />
-                    Settings
-                </button>
+            <div className="sidebar-footer">
+                <ProgressIndicator pillars={pillars} agentFeedback={agentFeedback} onExport={onExport} />
             </div>
             <style>{`
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(-4px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
                 .sidebar-chevron-btn {
                     padding: 0;
                     background: transparent;
@@ -294,9 +300,21 @@ export default function Sidebar({ pillars, activePillarId, activeDecisionId, onS
                 .sidebar-children-group {
                     margin-left: 9px;
                     padding-left: 8px;
-                    border-left: 1px solid rgba(148, 163, 184, 0.32);
+                    border-left: 1px solid var(--sidebar-tree-line);
                     margin-top: 3px;
-                    animation: fadeIn 0.24s ease-out;
+                    max-height: 0;
+                    overflow: hidden;
+                    opacity: 0;
+                    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                                opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .sidebar-children-group.expanded {
+                    max-height: 2000px;
+                    opacity: 1;
+                }
+                .sidebar-children-group.collapsed {
+                    max-height: 0;
+                    opacity: 0;
                 }
                 .sidebar-decision-section {
                     display: flex;
@@ -322,14 +340,14 @@ export default function Sidebar({ pillars, activePillarId, activeDecisionId, onS
                     text-align: left;
                 }
                 .sidebar-decision-row:hover {
-                    background: rgba(59, 130, 246, 0.08);
+                    background: var(--accent-subtle);
                 }
                 .sidebar-decision-row.active {
-                    background: rgba(59, 130, 246, 0.16);
-                    color: #1d4ed8;
+                    background: var(--sidebar-active-bg);
+                    color: var(--sidebar-active-color);
                 }
                 .sidebar-decision-row:focus-visible {
-                    outline: 1px solid rgba(59, 130, 246, 0.55);
+                    outline: 1px solid var(--accent-border);
                     outline-offset: 1px;
                 }
                 .sidebar-decision-label {
@@ -349,7 +367,7 @@ export default function Sidebar({ pillars, activePillarId, activeDecisionId, onS
                 .sidebar-feature-feature-group {
                     margin-left: 11px;
                     padding-left: 8px;
-                    border-left: 1px solid rgba(148,163,184,0.24);
+                    border-left: 1px solid var(--sidebar-tree-line);
                     display: flex;
                     flex-direction: column;
                     gap: 2px;

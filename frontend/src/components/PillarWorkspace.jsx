@@ -26,6 +26,8 @@ const SubcategoriesList = ({ subcategories }) => {
 const DecisionCard = ({ decision, index, onUpdateDecision, pillarId, isActive }) => {
     const standardConfig = STANDARD_DECISIONS[decision.id];
     const cardRef = React.useRef(null);
+    const prevAnswerRef = React.useRef(decision.answer);
+    const [justResolved, setJustResolved] = React.useState(false);
 
     React.useEffect(() => {
         if (isActive && cardRef.current) {
@@ -33,10 +35,19 @@ const DecisionCard = ({ decision, index, onUpdateDecision, pillarId, isActive })
         }
     }, [isActive]);
 
+    React.useEffect(() => {
+        if (decision.answer && !prevAnswerRef.current) {
+            setJustResolved(true);
+            const timer = setTimeout(() => setJustResolved(false), 600);
+            return () => clearTimeout(timer);
+        }
+        prevAnswerRef.current = decision.answer;
+    }, [decision.answer]);
+
     return (
         <div 
             ref={cardRef}
-            className={`decision-card ${decision.conflict ? 'conflict' : (decision.answer ? 'answered' : 'pending')} ${isActive ? 'active-highlight' : ''}`} 
+            className={`decision-card ${decision.conflict ? 'conflict' : (decision.answer ? 'answered' : 'pending')} ${isActive ? 'active-highlight' : ''} ${justResolved ? 'just-resolved' : ''}`}
             style={{ animationDelay: `${index * 0.1}s` }}
         >
             <div className="decision-card-header">
@@ -210,7 +221,7 @@ const FeatureCard = ({ feature, onEdit, onDelete, pillarId, relatedDecisions = [
                     ) : (
                         <div className="feature-view">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
-                                <span className="priority-badge" style={{ background: 'rgba(59,130,246,0.18)', color: '#1e40af' }}>
+                                <span className="priority-badge" style={{ background: 'var(--accent-subtle)', color: 'var(--accent-color)' }}>
                                     {(feature.work_item_type || 'feature').toUpperCase()}
                                 </span>
                                 <span className={`priority-badge ${(feature.priority || 'P1').toLowerCase()}`}>{feature.priority || 'P1'}</span>
@@ -272,8 +283,8 @@ const FeatureCard = ({ feature, onEdit, onDelete, pillarId, relatedDecisions = [
                 <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem' }}>
                     {isEditing ? (
                         <>
-                            <button className="btn-secondaryIcon" onClick={handleSave} title="Save"><VscCheck color="#10b981" /></button>
-                            <button className="btn-secondaryIcon" onClick={() => setIsEditing(false)} title="Cancel"><VscClose color="#ef4444" /></button>
+                            <button className="btn-secondaryIcon" onClick={handleSave} title="Save"><VscCheck color="var(--color-resolved)" /></button>
+                            <button className="btn-secondaryIcon" onClick={() => setIsEditing(false)} title="Cancel"><VscClose color="var(--color-conflict)" /></button>
                         </>
                     ) : (
                         <>
@@ -290,7 +301,7 @@ const FeatureCard = ({ feature, onEdit, onDelete, pillarId, relatedDecisions = [
                 .feature-detail-section {
                     margin-top: 1rem;
                     padding-top: 0.75rem;
-                    border-top: 1px solid rgba(255,255,255,0.05);
+                    border-top: 1px solid var(--border-color);
                 }
                 .feature-detail-section h5 {
                     margin: 0 0 0.5rem 0;
@@ -316,18 +327,18 @@ const FeatureCard = ({ feature, onEdit, onDelete, pillarId, relatedDecisions = [
                     font-weight: 700;
                     padding: 2px 6px;
                     border-radius: 4px;
-                    background: rgba(255,255,255,0.1);
+                    background: var(--bg-tertiary);
                 }
-                .priority-badge.p0 { background: #ef4444; color: white; }
-                .priority-badge.p1 { background: #f59e0b; color: white; }
-                .priority-badge.p2 { background: #3b82f6; color: white; }
+                .priority-badge.p0 { background: var(--color-p0); color: white; }
+                .priority-badge.p1 { background: var(--color-p1); color: white; }
+                .priority-badge.p2 { background: var(--color-p2); color: white; }
                 
                 .dep-tag {
                     font-size: 0.75rem;
                     padding: 2px 8px;
-                    background: rgba(255,255,255,0.1);
+                    background: var(--bg-tertiary);
                     border-radius: 12px;
-                    border: 1px solid rgba(255,255,255,0.1);
+                    border: 1px solid var(--border-color);
                 }
                 
                 .edit-field {

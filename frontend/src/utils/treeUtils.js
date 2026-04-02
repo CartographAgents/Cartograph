@@ -63,3 +63,20 @@ export const deleteDecisionFromPillar = (nodes, pillarId, decisionId) => {
         return node;
     });
 };
+
+export const flattenAllDecisions = (nodes = [], parentTrail = []) => {
+    const rows = [];
+    (nodes || []).forEach((node) => {
+        const trail = [...parentTrail, node.title];
+        (node.decisions || []).forEach((decision) => {
+            rows.push({
+                ...decision,
+                pillarId: node.id,
+                pillarTitle: trail[0] || node.title,
+                breadcrumb: trail.join(' > ')
+            });
+        });
+        rows.push(...flattenAllDecisions(node.subcategories || [], trail));
+    });
+    return rows;
+};

@@ -33,7 +33,7 @@ export default function DeleteProjectModal({ projectTitle, onArchive, onDelete, 
                             padding: '1rem', 
                             gap: '1rem',
                             textAlign: 'left',
-                            background: 'rgba(255, 255, 255, 0.5)'
+                            background: 'var(--bg-tertiary)'
                         }}
                     >
                         <div style={{ color: 'var(--accent-color)' }}><ArchiveIcon /></div>
@@ -51,15 +51,15 @@ export default function DeleteProjectModal({ projectTitle, onArchive, onDelete, 
                             padding: '1rem', 
                             gap: '1rem',
                             textAlign: 'left',
-                            borderColor: 'rgba(239, 68, 68, 0.2)',
-                            background: 'rgba(254, 242, 242, 0.5)'
+                            borderColor: 'var(--color-conflict-border)',
+                            background: 'var(--color-conflict-bg)'
                         }}
-                        onMouseOver={(e) => e.currentTarget.style.borderColor = '#ef4444'}
-                        onMouseOut={(e) => e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)'}
+                        onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--color-conflict)'}
+                        onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--color-conflict-border)'}
                     >
-                        <div style={{ color: '#ef4444' }}><TrashIcon /></div>
+                        <div style={{ color: 'var(--color-conflict)' }}><TrashIcon /></div>
                         <div>
-                            <div style={{ fontWeight: 600, color: '#ef4444' }}>Delete Permanently</div>
+                            <div style={{ fontWeight: 600, color: 'var(--color-conflict)' }}>Delete Permanently</div>
                             <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>This action cannot be undone.</div>
                         </div>
                     </button>

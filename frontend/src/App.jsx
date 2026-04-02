@@ -4,10 +4,11 @@ import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import PillarWorkspace from './components/PillarWorkspace';
 import SettingsModal from './components/SettingsModal';
-import ProjectsPanel from './components/ProjectsPanel';
 import GraphView from './components/GraphView';
 import ProjectOverview from './components/ProjectOverview';
 import DecisionFocusView from './components/DecisionFocusView';
+import ViewTransition from './components/common/ViewTransition';
+import Breadcrumbs from './components/Breadcrumbs';
 import { VscFileSubmodule, VscGraph, VscBook, VscBell, VscClose, VscChevronDown, VscChevronUp } from 'react-icons/vsc';
 import { useAppLogic } from './hooks/useAppLogic';
 import { findNodeById } from './utils/treeUtils';
@@ -67,6 +68,11 @@ const findPillarContainingDecision = (nodes = [], decisionId) => {
 
 function App() {
   const [chatFocusTrigger, setChatFocusTrigger] = React.useState(0);
+  const [isChatDrawerOpen, setIsChatDrawerOpen] = React.useState(false);
+  const lastSeenMessageCount = React.useRef(0);
+  const scrollContainerRef = React.useRef(null);
+  const scrollPositions = React.useRef({});
+  const prevViewKeyRef = React.useRef('');
   const isApplyingRouteRef = React.useRef(false);
   const hasAppliedInitialRouteRef = React.useRef(false);
   const loadingRouteProjectRef = React.useRef(null);
@@ -81,11 +87,10 @@ function App() {
     activePillar,
     agentFeedback,
     projectId,
+    projectName,
     projectOverview,
     errorMessage,
     setErrorMessage,
-    isProjectsOpen,
-    setIsProjectsOpen,
     viewMode,
     setViewMode,
     isSettingsOpen,
@@ -190,22 +195,42 @@ function App() {
     }
   }, [projectId, viewMode, activePillarId, activeDecisionId]);
 
+  // Save/restore scroll position on view switch
+  React.useEffect(() => {
+    const viewKey = `${viewMode}-${activePillarId || 'none'}`;
+    const prev = prevViewKeyRef.current;
+    if (prev && prev !== viewKey && scrollContainerRef.current) {
+      scrollPositions.current[prev] = scrollContainerRef.current.scrollTop;
+    }
+    prevViewKeyRef.current = viewKey;
+    requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollPositions.current[viewKey] || 0;
+      }
+    });
+  }, [viewMode, activePillarId]);
+
+  // Update unread count when drawer opens
+  React.useEffect(() => {
+    if (isChatDrawerOpen) {
+      lastSeenMessageCount.current = messages.length;
+      setChatFocusTrigger(v => v + 1);
+    }
+  }, [isChatDrawerOpen, messages.length]);
+
+  const unreadMessageCount = isChatDrawerOpen ? 0 : Math.max(0, messages.length - lastSeenMessageCount.current);
+
+  const handleNewProjectAction = () => {
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+      window.history.pushState({}, '', '/');
+    }
+    handleNewProject();
+    setIsChatDrawerOpen(true);
+    setChatFocusTrigger((value) => value + 1);
+  };
+
   return (
     <div className="app-layout">
-      <ProjectsPanel
-        currentProjectId={projectId}
-        isOpen={isProjectsOpen}
-        onSelectProject={handleSelectProject}
-        onNewProject={() => {
-          if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-            window.history.pushState({}, '', '/');
-          }
-          handleNewProject();
-          setChatFocusTrigger((value) => value + 1);
-        }}
-        onToggle={() => setIsProjectsOpen(!isProjectsOpen)}
-      />
-
       {isSettingsOpen && (
         <SettingsModal
           currentConfig={llmConfig}
@@ -225,94 +250,20 @@ function App() {
           setViewMode('decision');
         }}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        currentProjectId={projectId}
+        currentProjectName={''}
+        onSelectProject={handleSelectProject}
+        onNewProject={handleNewProjectAction}
+        agentFeedback={agentFeedback}
+        onExport={handleExport}
       />
 
       <main className="main-workspace">
-        <header className="workspace-header glass-panel">
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <button 
-              className={`btn-secondary ${viewMode === 'pillar' ? 'active' : ''}`}
-              style={{ 
-                padding: '0.25rem 0.5rem', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.25rem', 
-                borderColor: viewMode === 'pillar' ? '#3b82f6' : 'rgba(255,255,255,0.1)' 
-              }}
-              onClick={() => setViewMode('pillar')}
-              title="Pillar Details"
-            >
-              <VscFileSubmodule /> Details
-            </button>
-            <button 
-              className={`btn-secondary ${viewMode === 'graph' ? 'active' : ''}`}
-              style={{ 
-                padding: '0.25rem 0.5rem', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.25rem', 
-                borderColor: viewMode === 'graph' ? '#10b981' : 'rgba(255,255,255,0.1)' 
-              }}
-              onClick={() => setViewMode('graph')}
-              title="Dependency Graph"
-            >
-              <VscGraph /> Graph
-            </button>
-            <button
-              className={`btn-secondary ${viewMode === 'overview' ? 'active' : ''}`}
-              style={{
-                padding: '0.25rem 0.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                borderColor: viewMode === 'overview' ? '#f59e0b' : 'rgba(255,255,255,0.1)'
-              }}
-              onClick={() => setViewMode('overview')}
-              title="Project Overview"
-            >
-              <VscBook /> Overview
-            </button>
-            {activeDecisionId && (
-              <button
-                className={`btn-secondary ${viewMode === 'decision' ? 'active' : ''}`}
-                style={{
-                  padding: '0.25rem 0.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  borderColor: viewMode === 'decision' ? '#ef4444' : 'rgba(255,255,255,0.1)'
-                }}
-                onClick={() => setViewMode('decision')}
-                title="Decision Focus"
-              >
-                Focus
-              </button>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-            <h3 style={{ margin: 0 }}>Architecture Blueprint</h3>
-            <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}>
-              <VscBell size={20} style={{ opacity: 0.7 }} />
-              {agentFeedback.metadataReport.length > 0 && (
-                <span className="notification-badge">
-                  {agentFeedback.metadataReport.length}
-                </span>
-              )}
-            </div>
-          </div>
-          <button
-            className="btn-primary"
-            onClick={handleExport}
-            title="Export Blueprint"
-          >
-            Export .zip
-          </button>
-        </header>
 
         {errorMessage && (
-          <div className="agent-alerts glass-panel" style={{ padding: '1rem', borderLeft: '3px solid #ef4444', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="agent-alerts glass-panel" style={{ padding: '1rem', borderLeft: '3px solid var(--color-conflict)', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h4 style={{ color: '#ef4444', marginBottom: '0.25rem' }}>System Error</h4>
+              <h4 style={{ color: 'var(--color-conflict)', marginBottom: '0.25rem' }}>System Error</h4>
               <p style={{ margin: 0, fontSize: '0.9rem' }}>{errorMessage}</p>
             </div>
             <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }} onClick={() => setErrorMessage(null)}>Dismiss</button>
@@ -326,8 +277,47 @@ function App() {
           activePillarId={activePillarId}
         />
 
-        <div className="workspace-content" style={{ display: 'flex', gap: '1rem', height: 'calc(100vh - 120px)' }}>
-          <div className="pillar-details-pane" style={{ flex: 1, overflowY: viewMode === 'graph' ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div className="workspace-content" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+          <div ref={scrollContainerRef} className="pillar-details-pane" style={{ flex: 1, overflowY: viewMode === 'graph' ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div className="workspace-toolbar">
+              <Breadcrumbs
+                projectName={projectName}
+                pillars={pillars}
+                activePillarId={activePillarId}
+                activeDecisionId={activeDecisionId}
+                viewMode={viewMode}
+                onNavigate={({ pillarId, decisionId, viewMode: mode }) => {
+                  setActivePillarId(pillarId);
+                  setActiveDecisionId(decisionId);
+                  setViewMode(mode);
+                }}
+              />
+              <div className="workspace-toolbar-actions">
+                <button className={`view-tab btn-secondary ${viewMode === 'pillar' ? 'active' : ''}`} onClick={() => setViewMode('pillar')} title="Pillar Details">
+                  <VscFileSubmodule /> Details
+                </button>
+                <button className={`view-tab btn-secondary ${viewMode === 'graph' ? 'active' : ''}`} onClick={() => setViewMode('graph')} title="Dependency Graph">
+                  <VscGraph /> Graph
+                </button>
+                <button className={`view-tab btn-secondary ${viewMode === 'overview' ? 'active' : ''}`} onClick={() => setViewMode('overview')} title="Project Overview">
+                  <VscBook /> Overview
+                </button>
+                {activeDecisionId && (
+                  <button className={`view-tab btn-secondary ${viewMode === 'decision' ? 'active' : ''}`} onClick={() => setViewMode('decision')} title="Decision Focus">
+                    Focus
+                  </button>
+                )}
+                <div style={{ position: 'relative', cursor: 'pointer', marginLeft: '0.5rem' }} onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}>
+                  <VscBell size={18} style={{ opacity: 0.7 }} />
+                  {agentFeedback.metadataReport.length > 0 && (
+                    <span className="notification-badge">
+                      {agentFeedback.metadataReport.length}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <ViewTransition viewKey={`${viewMode}-${activePillarId || 'none'}`}>
             {viewMode === 'graph' ? (
               <GraphView 
                 pillars={pillars}
@@ -378,17 +368,36 @@ function App() {
                 <p>Select a node from the sidebar to view its extracted details.</p>
               </div>
             )}
-          </div>
-          <div className="chat-pane" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'hidden' }}>
-            <ChatInterface
-              messages={messages}
-              onSendMessage={handleSendMessage}
-              isWaiting={isWaiting}
-              focusTrigger={chatFocusTrigger}
-            />
+            </ViewTransition>
           </div>
         </div>
       </main>
+
+      {/* Chat Drawer */}
+      {isChatDrawerOpen && <div className="modal-overlay chat-drawer-overlay" style={{ background: 'rgba(0,0,0,0.3)' }} onClick={() => setIsChatDrawerOpen(false)} />}
+      <div className={`chat-drawer ${isChatDrawerOpen ? 'open' : ''}`}>
+        <div className="chat-drawer-header">
+          <h4 style={{ margin: 0, color: 'var(--text-heading)' }}>Agent</h4>
+          <button className="btn-secondary" style={{ padding: '0.3rem 0.5rem', fontSize: '0.8rem' }} onClick={() => setIsChatDrawerOpen(false)}>
+            <VscClose size={14} />
+          </button>
+        </div>
+        <ChatInterface
+          messages={messages}
+          onSendMessage={handleSendMessage}
+          isWaiting={isWaiting}
+          focusTrigger={chatFocusTrigger}
+        />
+      </div>
+
+      {/* Chat FAB */}
+      {!isChatDrawerOpen && (
+        <button className="chat-trigger-fab" onClick={() => setIsChatDrawerOpen(true)}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          Agent
+          {unreadMessageCount > 0 && <span className="chat-badge">{unreadMessageCount}</span>}
+        </button>
+      )}
     </div>
   );
 }

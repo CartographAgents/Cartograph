@@ -2,23 +2,8 @@ import React from 'react';
 import { FaCheck } from 'react-icons/fa';
 import { getDecisionInsightBundle } from '../utils/decisionInsights';
 import { fetchDecisionSemanticNeighbors, fetchDecisionSuggestions } from '../services/apiService';
-
-const flattenAllDecisions = (nodes = [], parentTrail = []) => {
-    const rows = [];
-    (nodes || []).forEach((node) => {
-        const trail = [...parentTrail, node.title];
-        (node.decisions || []).forEach((decision) => {
-            rows.push({
-                ...decision,
-                pillarId: node.id,
-                pillarTitle: trail[0] || node.title,
-                breadcrumb: trail.join(' > ')
-            });
-        });
-        rows.push(...flattenAllDecisions(node.subcategories || [], trail));
-    });
-    return rows;
-};
+import Skeleton from './common/Skeleton';
+import { flattenAllDecisions } from '../utils/treeUtils';
 
 export default function DecisionFocusView({
     pillars,
@@ -91,7 +76,9 @@ export default function DecisionFocusView({
     const isResolved = !!decision.answer && !isConflict;
     const shouldShowSuggestions = !decision.answer;
     const statusLabel = isConflict ? 'Conflict' : (isResolved ? 'Resolved' : 'Pending');
-    const statusColor = isConflict ? '#ef4444' : (isResolved ? '#10b981' : '#f59e0b');
+    const statusColor = isConflict ? 'var(--color-conflict)' : (isResolved ? 'var(--color-resolved)' : 'var(--color-pending)');
+    const statusBg = isConflict ? 'var(--color-conflict-bg)' : (isResolved ? 'var(--color-resolved-bg)' : 'var(--color-pending-bg)');
+    const statusBorder = isConflict ? 'var(--color-conflict-border)' : (isResolved ? 'var(--color-resolved-border)' : 'var(--color-pending-border)');
     const handleConfirmSuggestion = (label) => {
         setIsHidingSuggestions(true);
         setTimeout(() => {
@@ -102,27 +89,21 @@ export default function DecisionFocusView({
     };
 
     const relationTone = (impact) => {
-        const normalizedScore = Number.isFinite(impact?.score)
-            ? Math.max(0, Math.min(1, impact.score))
-            : 0.5;
-        const fillAlpha = 0.06 + (normalizedScore * 0.2);
-        const borderAlpha = 0.2 + (normalizedScore * 0.25);
-
         if (impact.relationTypes?.includes('conflicts')) {
             return {
-                bg: `rgba(239,68,68,${fillAlpha.toFixed(3)})`,
-                border: `rgba(239,68,68,${borderAlpha.toFixed(3)})`
+                bg: 'var(--color-conflict-bg)',
+                border: 'var(--color-conflict-border)'
             };
         }
         if (impact.relationTypes?.includes('depends_on') || impact.relationTypes?.includes('required_by')) {
             return {
-                bg: `rgba(59,130,246,${fillAlpha.toFixed(3)})`,
-                border: `rgba(59,130,246,${borderAlpha.toFixed(3)})`
+                bg: 'var(--color-info-bg)',
+                border: 'var(--color-info-border)'
             };
         }
         return {
-            bg: `rgba(16,185,129,${fillAlpha.toFixed(3)})`,
-            border: `rgba(16,185,129,${borderAlpha.toFixed(3)})`
+            bg: 'var(--color-resolved-bg)',
+            border: 'var(--color-resolved-border)'
         };
     };
 
@@ -227,8 +208,8 @@ export default function DecisionFocusView({
                                 letterSpacing: '0.04em',
                                 borderRadius: '11px',
                                 padding: '2px 9px',
-                                background: `${statusColor}22`,
-                                border: `1px solid ${statusColor}55`
+                                background: statusBg,
+                                border: `1px solid ${statusBorder}`
                             }}
                         >
                             {statusLabel}
@@ -248,16 +229,16 @@ export default function DecisionFocusView({
                         <div
                             style={{
                                 marginTop: '0.7rem',
-                                border: '1px solid rgba(239,68,68,0.35)',
+                                border: '1px solid var(--color-conflict-border)',
                                 borderRadius: '8px',
-                                background: 'rgba(254,226,226,0.72)',
+                                background: 'var(--color-conflict-bg)',
                                 padding: '0.55rem 0.65rem'
                             }}
                         >
-                            <p style={{ margin: '0 0 0.35rem 0', fontWeight: 700, color: '#991b1b' }}>
+                            <p style={{ margin: '0 0 0.35rem 0', fontWeight: 700, color: 'var(--color-conflict-text)' }}>
                                 Conflict Reason{conflictReasons.length === 1 ? '' : 's'}
                             </p>
-                            <ul style={{ margin: 0, paddingLeft: '1rem', color: '#7f1d1d' }}>
+                            <ul style={{ margin: 0, paddingLeft: '1rem', color: 'var(--color-conflict-text)' }}>
                                 {conflictReasons.map((reason, idx) => (
                                     <li key={`${reason}-${idx}`} style={{ marginBottom: '0.25rem' }}>
                                         {reason}
@@ -277,8 +258,8 @@ export default function DecisionFocusView({
             </div>
 
             <section style={{ marginTop: '1.1rem' }}>
-                <h4 style={{ margin: '0 0 0.5rem 0', color: '#1f2937' }}>Decision Brief</h4>
-                <div style={{ border: '1px solid rgba(59,130,246,0.25)', borderRadius: '10px', background: 'rgba(239,246,255,0.7)', padding: '0.75rem 0.85rem' }}>
+                <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-heading)' }}>Decision Brief</h4>
+                <div style={{ border: '1px solid var(--color-info-border)', borderRadius: '10px', background: 'var(--color-info-bg)', padding: '0.75rem 0.85rem' }}>
                     <p style={{ margin: '0 0 0.55rem 0', opacity: 0.86 }}>
                         Summary of context needed to make a project-grounded, data-driven decision:
                     </p>
@@ -291,30 +272,14 @@ export default function DecisionFocusView({
 
                 {(shouldShowSuggestions || isHidingSuggestions) && (
                 <div className={`decision-suggestions-section ${isHidingSuggestions ? 'hiding' : ''}`} style={{ marginTop: '0.8rem' }}>
-                    <h5 style={{ margin: '0 0 0.45rem 0', color: '#1f2937' }}>Suggested Decisions</h5>
+                    <h5 style={{ margin: '0 0 0.45rem 0', color: 'var(--text-heading)' }}>Suggested Decisions</h5>
                     <p style={{ margin: '0 0 0.5rem 0', opacity: 0.8, fontSize: '0.84rem' }}>
                         Click a suggestion, then confirm to apply it as the current decision.
                     </p>
                     {isSuggestionsLoading ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                            {[0, 1, 2].map((idx) => (
-                                <div
-                                    key={`suggestion-skeleton-${idx}`}
-                                    style={{
-                                        border: '1px solid rgba(255,255,255,0.1)',
-                                        borderRadius: '10px',
-                                        padding: '0.65rem 0.8rem',
-                                        background: 'rgba(255,255,255,0.04)'
-                                    }}
-                                >
-                                    <div className="decision-skeleton-line title" />
-                                    <div className="decision-skeleton-line body" />
-                                    <div className="decision-skeleton-line body short" />
-                                </div>
-                            ))}
-                        </div>
+                        <Skeleton variant="card" count={3} />
                     ) : suggestionsError ? (
-                        <p style={{ opacity: 0.85, margin: 0, color: '#b45309' }}>
+                        <p style={{ opacity: 0.85, margin: 0, color: 'var(--color-pending-text)' }}>
                             {suggestionsError}
                         </p>
                     ) : decisionSuggestions.length === 0 ? (
@@ -390,7 +355,7 @@ export default function DecisionFocusView({
 
             <section style={{ marginTop: '1.1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.45rem' }}>
-                    <h4 style={{ margin: 0, color: '#1f2937' }}>Impact Map</h4>
+                    <h4 style={{ margin: 0, color: 'var(--text-heading)' }}>Impact Map</h4>
                     <button
                         className="btn-secondary"
                         style={{ padding: '0.22rem 0.5rem', fontSize: '0.78rem' }}
@@ -427,7 +392,7 @@ export default function DecisionFocusView({
                                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', alignItems: 'flex-start' }}>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
                                             <strong>{impact.question}</strong>
-                                            <span style={{ fontSize: '0.72rem', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '10px', padding: '1px 7px' }}>
+                                            <span style={{ fontSize: '0.72rem', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1px 7px' }}>
                                                 {impact.topLevelTitle}
                                             </span>
                                             {impact.breadcrumb && impact.breadcrumb !== impact.topLevelTitle && (
@@ -455,8 +420,8 @@ export default function DecisionFocusView({
             <style>{`
                 .decision-focus-shell {
                     background:
-                        radial-gradient(1200px 350px at 0% 0%, rgba(59,130,246,0.08), transparent 60%),
-                        radial-gradient(900px 280px at 100% 100%, rgba(16,185,129,0.06), transparent 58%);
+                        radial-gradient(1200px 350px at 0% 0%, rgba(212,160,84,0.06), transparent 60%),
+                        radial-gradient(900px 280px at 100% 100%, rgba(45,212,168,0.04), transparent 58%);
                 }
                 .decision-focus-top-grid {
                     display: grid;
@@ -464,36 +429,17 @@ export default function DecisionFocusView({
                     gap: 0.85rem;
                 }
                 .decision-focus-primary-card {
-                    border: 1px solid rgba(59,130,246,0.24);
-                    background: rgba(255,255,255,0.75);
+                    border: 1px solid var(--border-color);
+                    background: var(--bg-secondary);
                     border-radius: 10px;
                     padding: 0.85rem;
                 }
                 .decision-focus-practice-card {
-                    border: 1px solid rgba(59,130,246,0.24);
-                    background: rgba(239,246,255,0.72);
+                    border: 1px solid var(--color-info-border);
+                    background: var(--color-info-bg);
                     border-radius: 10px;
                     padding: 0.85rem;
                     font-size: 0.88rem;
-                }
-                .decision-skeleton-line {
-                    border-radius: 6px;
-                    margin-bottom: 0.4rem;
-                    background: linear-gradient(90deg, rgba(148,163,184,0.18) 0%, rgba(148,163,184,0.32) 50%, rgba(148,163,184,0.18) 100%);
-                    background-size: 220% 100%;
-                    animation: decisionSkeletonPulse 1.1s ease-in-out infinite;
-                }
-                .decision-skeleton-line.title {
-                    height: 18px;
-                    width: 45%;
-                }
-                .decision-skeleton-line.body {
-                    height: 14px;
-                    width: 96%;
-                }
-                .decision-skeleton-line.body.short {
-                    width: 72%;
-                    margin-bottom: 0;
                 }
                 .decision-recommended-badge {
                     display: inline-flex;
@@ -503,9 +449,9 @@ export default function DecisionFocusView({
                     font-weight: 700;
                     text-transform: uppercase;
                     letter-spacing: 0.04em;
-                    color: #065f46;
-                    background: rgba(16,185,129,0.14);
-                    border: 1px solid rgba(16,185,129,0.4);
+                    color: var(--color-resolved-text);
+                    background: var(--color-resolved-bg);
+                    border: 1px solid var(--color-resolved-border);
                     border-radius: 999px;
                     padding: 0.15rem 0.5rem;
                     margin-bottom: 0.45rem;
@@ -516,8 +462,8 @@ export default function DecisionFocusView({
                     flex-direction: column;
                     align-items: flex-start;
                     cursor: pointer;
-                    border: 1px solid rgba(15,23,42,0.1);
-                    background: rgba(255,255,255,0.72);
+                    border: 1px solid var(--border-color);
+                    background: var(--bg-secondary);
                     border-radius: 10px;
                     padding: 0.7rem 0.9rem;
                     white-space: normal;
@@ -525,29 +471,29 @@ export default function DecisionFocusView({
                     transition: border-color 0.18s ease, background 0.18s ease;
                 }
                 .decision-suggestion-card:hover {
-                    border-color: rgba(59,130,246,0.32);
-                    background: rgba(239,246,255,0.78);
+                    border-color: var(--accent-border);
+                    background: var(--accent-subtle);
                 }
                 .decision-suggestion-card.selected {
-                    border-color: rgba(59,130,246,0.56);
-                    background: rgba(219,234,254,0.72);
+                    border-color: var(--accent-color);
+                    background: var(--accent-subtle);
                 }
                 .decision-suggestion-title {
                     font-weight: 700;
                     font-size: 1.12rem;
                     line-height: 1.25;
-                    color: #111827;
+                    color: var(--text-heading);
                     margin-bottom: 0.55rem;
                 }
                 .decision-suggestion-reason {
                     font-size: 1.02rem;
                     line-height: 1.45;
-                    color: #42556f;
+                    color: var(--text-secondary);
                 }
                 .decision-suggestion-confirm {
                     margin-top: 0.55rem;
                     width: 100%;
-                    border-top: 1px solid rgba(59,130,246,0.2);
+                    border-top: 1px solid var(--accent-border);
                     padding-top: 0.5rem;
                     display: flex;
                     justify-content: space-between;
@@ -566,10 +512,6 @@ export default function DecisionFocusView({
                     transform: translateY(-4px);
                     max-height: 0;
                     pointer-events: none;
-                }
-                @keyframes decisionSkeletonPulse {
-                    0% { background-position: 200% 0; }
-                    100% { background-position: -200% 0; }
                 }
                 @media (max-width: 980px) {
                     .decision-focus-top-grid {

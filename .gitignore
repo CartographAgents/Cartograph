@@ -23,6 +23,13 @@ dist-ssr
 *.sln
 *.sw?
 
+# Local databases
+*.sqlite
+*.sqlite3
+
+# UI preview (dev only)
+frontend/ui-preview.html
+
 # Local contributor context bundles
 .cartograph/*
 !.cartograph/

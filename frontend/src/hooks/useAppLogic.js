@@ -25,9 +25,9 @@ export function useAppLogic() {
   const [projectId, setProjectId] = useState(null);
   const [projectOverview, setProjectOverview] = useState('');
   const [errorMessage, setErrorMessage] = useState(null);
-  const [isProjectsOpen, setIsProjectsOpen] = useState(false);
   const [viewMode, setViewMode] = useState('pillar');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [projectName, setProjectName] = useState('');
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [llmConfig, setLlmConfig] = useState({
     keys: { openai: '', anthropic: '', gemini: '' },
@@ -38,14 +38,14 @@ export function useAppLogic() {
   // 2. Logic Containers
   const setters = {
     setMessages, setIsWaiting, setPillars, setActivePillarId, setActiveDecisionId,
-    setProjectId, setErrorMessage, setIsProjectsOpen,
-    setProjectOverview,
+    setProjectId, setErrorMessage,
+    setProjectOverview, setProjectName,
     setViewMode, setIsSettingsOpen, setIsNotificationsOpen, setLlmConfig
   };
 
   const state = {
     messages, isWaiting, pillars, activePillarId, activeDecisionId,
-    projectId, projectOverview, errorMessage, isProjectsOpen,
+    projectId, projectOverview, projectName, errorMessage,
     viewMode, isSettingsOpen, isNotificationsOpen, llmConfig
   };
 
@@ -119,7 +119,8 @@ export function useAppLogic() {
   return {
     ...state,
     agentFeedback,
-    setActivePillarId, setActiveDecisionId, setErrorMessage, setIsProjectsOpen,
+    projectName, setProjectName,
+    setActivePillarId, setActiveDecisionId, setErrorMessage,
     setViewMode, setIsSettingsOpen, setIsNotificationsOpen, setLlmConfig, setProjectOverview,
     handleNewProject, handleSelectProject,
     handleSendMessage, handleUpdateDecision, handleAddFeature, handleDeleteFeature, handleEditFeature, handleExport,
